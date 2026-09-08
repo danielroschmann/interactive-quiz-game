@@ -34,6 +34,7 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := NewClient(hub, conn)
+	hub.register <- client
 	log.Println("Client connected", client)
 
 	go client.writePump()
