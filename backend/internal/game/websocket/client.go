@@ -35,4 +35,54 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 	client := NewClient(hub, conn)
 	log.Println("Client connected", client)
+
+	go client.writePump()
+	go client.readPump()
+}
+
+func (c *Client) readPump() {
+	defer func() {
+		c.hub.unregister <- c
+		c.conn.Close()
+	}()
+
+	for {
+		_, message, err := c.conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		c.hub.broadcast <- message
+	}
+}
+
+func (c *Client) writePump() {
+	defer func() {
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		case message, ok := <-c.send:
+			if !ok {
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			w, err := c.conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+			w.Write(message)
+
+			n := len(c.send)
+			for i := 0; i < n; i++ {
+				w.Write(<-c.send)
+			}
+
+			if err := w.Close(); err != nil {
+				return
+			}
+		}
+	}
 }

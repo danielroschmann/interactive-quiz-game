@@ -17,6 +17,7 @@ func main() {
 	})
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWs(hub, w, r)
+		log.Println("WebSocket Server started")
 	})
 
 	log.Println("Server running on :8080")
