@@ -10,6 +10,7 @@ const (
 	Buzz         MessageType = "buzz"
 	Answer       MessageType = "answer"
 	PlayerJoined MessageType = "player_joined"
+	PlayerLeft   MessageType = "player_left"
 )
 
 type Message struct {

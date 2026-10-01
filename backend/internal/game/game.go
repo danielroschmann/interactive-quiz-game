@@ -1,11 +1,18 @@
 // Package game works as the game engine
 package game
 
+import "slices"
+
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
 }
 
 type PlayerJoinedPayload struct {
+	PlayerID   uint   `json:"player_id"`
+	PlayerName string `json:"player_name"`
+}
+
+type PlayerLeftPayload struct {
 	PlayerID   uint   `json:"player_id"`
 	PlayerName string `json:"player_name"`
 }
@@ -30,5 +37,22 @@ func (g *Game) JoinGame(playerName string) Player {
 	}
 	g.Players = append(g.Players, player)
 	g.nextPlayerID++
+
 	return player
+}
+
+func (g *Game) LeaveGame(playerID uint) Player {
+	var removedPlayer Player
+
+	for _, p := range g.Players {
+		if p.PlayerID == playerID {
+			removedPlayer = p
+			break
+
+		}
+	}
+	g.Players = slices.DeleteFunc(g.Players, func(p Player) bool {
+		return p.PlayerID == playerID
+	})
+	return removedPlayer
 }

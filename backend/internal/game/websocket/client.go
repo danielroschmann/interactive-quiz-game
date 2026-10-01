@@ -77,6 +77,7 @@ func (c *Client) readPump() {
 			}
 			fmt.Printf("player wants to join: %s\n", payload.PlayerName)
 			player := c.game.JoinGame(payload.PlayerName)
+			c.playerID = player.PlayerID
 			playerJoinedPayload := game.PlayerJoinedPayload{
 				PlayerID:   player.PlayerID,
 				PlayerName: player.PlayerName,
@@ -99,7 +100,29 @@ func (c *Client) readPump() {
 
 			c.hub.broadcast <- messageData
 			fmt.Printf("players: %+v", c.game.Players)
+		case LeaveGame:
+			player := c.game.LeaveGame(c.playerID)
+			playerLeftPayload := game.PlayerLeftPayload{
+				PlayerID:   player.PlayerID,
+				PlayerName: player.PlayerName,
+			}
+			payloadData, err := json.Marshal(playerLeftPayload)
+			if err != nil {
+				log.Printf("failed to marshal payload %v", err)
+				continue
+			}
 
+			playerLeftMessage := Message{
+				Type:    PlayerLeft,
+				Payload: payloadData,
+			}
+
+			messageData, err := json.Marshal(playerLeftMessage)
+			if err != nil {
+				log.Printf("failed to marshal payload %v", err)
+				continue
+			}
+			c.hub.broadcast <- messageData
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
