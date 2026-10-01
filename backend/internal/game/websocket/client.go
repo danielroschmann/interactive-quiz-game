@@ -18,27 +18,29 @@ var upgrader = websocket.Upgrader{
 
 type Client struct {
 	hub      *Hub
+	game     *game.Game
 	conn     *websocket.Conn
 	send     chan []byte
 	playerID uint
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn) *Client {
+func NewClient(hub *Hub, game *game.Game, conn *websocket.Conn) *Client {
 	return &Client{
 		hub:  hub,
+		game: game,
 		conn: conn,
 		send: make(chan []byte),
 	}
 }
 
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func ServeWs(hub *Hub, game *game.Game, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to setup websocket", err)
 		return
 	}
 
-	client := NewClient(hub, conn)
+	client := NewClient(hub, game, conn)
 	hub.register <- client
 	log.Println("Client connected", client)
 
@@ -74,6 +76,7 @@ func (c *Client) readPump() {
 				continue
 			}
 			fmt.Printf("player wants to join: %s\n", payload.PlayerName)
+
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}

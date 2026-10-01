@@ -5,8 +5,13 @@ type JoinGamePayload struct {
 }
 
 type Game struct {
-	ID      string
 	Players []Player
+}
+
+func NewGame() *Game {
+	return &Game{
+		Players: make([]Player, 0),
+	}
 }
 
 func (g *Game) JoinGame(playerName string) {

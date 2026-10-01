@@ -5,19 +5,19 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
 	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game/websocket"
 )
 
 func main() {
 	hub := websocket.NewHub()
-
+	game := game.NewGame()
 	go hub.Run()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Server")
 	})
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		websocket.ServeWs(hub, w, r)
-		log.Println("WebSocket Server started")
+		websocket.ServeWs(hub, game, w, r)
 	})
 
 	log.Println("Server running on :8080")
