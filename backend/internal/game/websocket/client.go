@@ -1,9 +1,13 @@
+// WebSocket package handles connections from new clients and upgrades connection from HTTP to WS connection.
 package websocket
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
+	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
 	"github.com/gorilla/websocket"
 )
 
@@ -13,9 +17,10 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
+	hub      *Hub
+	conn     *websocket.Conn
+	send     chan []byte
+	playerID uint
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {
@@ -51,6 +56,26 @@ func (c *Client) readPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			break
+		}
+		var msg Message
+		err = json.Unmarshal(message, &msg)
+		if err != nil {
+			log.Printf("failed to unmarshal message %v", err)
+			continue
+		}
+		fmt.Printf("Type: %s", msg.Type)
+
+		switch msg.Type {
+		case JoinGame:
+			var payload game.JoinGamePayload
+			err := json.Unmarshal(msg.Payload, &payload)
+			if err != nil {
+				log.Printf("failed to unmarshal payload %v", err)
+				continue
+			}
+			fmt.Printf("player wants to join: %s\n", payload.PlayerName)
+		default:
+			log.Printf("unknown message type %s", msg.Type)
 		}
 
 		c.hub.broadcast <- message

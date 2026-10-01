@@ -1,5 +1,7 @@
 package websocket
 
+import "encoding/json"
+
 type MessageType string
 
 const (
@@ -8,3 +10,8 @@ const (
 	Buzz      MessageType = "buzz"
 	Answer    MessageType = "answer"
 )
+
+type Message struct {
+	Type    MessageType     `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
