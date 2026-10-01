@@ -5,10 +5,11 @@ import "encoding/json"
 type MessageType string
 
 const (
-	JoinGame  MessageType = "join_game"
-	LeaveGame MessageType = "leave_game"
-	Buzz      MessageType = "buzz"
-	Answer    MessageType = "answer"
+	JoinGame     MessageType = "join_game"
+	LeaveGame    MessageType = "leave_game"
+	Buzz         MessageType = "buzz"
+	Answer       MessageType = "answer"
+	PlayerJoined MessageType = "player_joined"
 )
 
 type Message struct {
