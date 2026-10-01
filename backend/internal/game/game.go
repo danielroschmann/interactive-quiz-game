@@ -41,18 +41,14 @@ func (g *Game) JoinGame(playerName string) Player {
 	return player
 }
 
-func (g *Game) LeaveGame(playerID uint) Player {
-	var removedPlayer Player
-
+func (g *Game) LeaveGame(playerID uint) (Player, bool) {
 	for _, p := range g.Players {
 		if p.PlayerID == playerID {
-			removedPlayer = p
-			break
-
+			g.Players = slices.DeleteFunc(g.Players, func(p Player) bool {
+				return p.PlayerID == playerID
+			})
+			return p, true
 		}
 	}
-	g.Players = slices.DeleteFunc(g.Players, func(p Player) bool {
-		return p.PlayerID == playerID
-	})
-	return removedPlayer
+	return Player{}, false
 }

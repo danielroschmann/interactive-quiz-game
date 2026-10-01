@@ -29,7 +29,7 @@ func NewClient(hub *Hub, game *game.Game, conn *websocket.Conn) *Client {
 		hub:  hub,
 		game: game,
 		conn: conn,
-		send: make(chan []byte),
+		send: make(chan []byte, 256),
 	}
 }
 
@@ -50,6 +50,7 @@ func ServeWs(hub *Hub, game *game.Game, w http.ResponseWriter, r *http.Request) 
 
 func (c *Client) readPump() {
 	defer func() {
+		c.leaveGame()
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -69,65 +70,80 @@ func (c *Client) readPump() {
 
 		switch msg.Type {
 		case JoinGame:
-			var payload game.JoinGamePayload
-			err := json.Unmarshal(msg.Payload, &payload)
-			if err != nil {
-				log.Printf("failed to unmarshal payload %v", err)
-				continue
-			}
-			fmt.Printf("player wants to join: %s\n", payload.PlayerName)
-			player := c.game.JoinGame(payload.PlayerName)
-			c.playerID = player.PlayerID
-			playerJoinedPayload := game.PlayerJoinedPayload{
-				PlayerID:   player.PlayerID,
-				PlayerName: player.PlayerName,
-			}
-			payloadData, err := json.Marshal(playerJoinedPayload)
-			if err != nil {
-				log.Printf("failed to marshal payload %v", err)
-				continue
-			}
-			playerJoinedMessage := Message{
-				Type:    PlayerJoined,
-				Payload: payloadData,
-			}
-
-			messageData, err := json.Marshal(playerJoinedMessage)
-			if err != nil {
-				log.Printf("failed to marshal payload %v", err)
-				continue
-			}
-
-			c.hub.broadcast <- messageData
-			fmt.Printf("players: %+v", c.game.Players)
+			c.joinGame(msg)
 		case LeaveGame:
-			player := c.game.LeaveGame(c.playerID)
-			playerLeftPayload := game.PlayerLeftPayload{
-				PlayerID:   player.PlayerID,
-				PlayerName: player.PlayerName,
-			}
-			payloadData, err := json.Marshal(playerLeftPayload)
-			if err != nil {
-				log.Printf("failed to marshal payload %v", err)
-				continue
-			}
-
-			playerLeftMessage := Message{
-				Type:    PlayerLeft,
-				Payload: payloadData,
-			}
-
-			messageData, err := json.Marshal(playerLeftMessage)
-			if err != nil {
-				log.Printf("failed to marshal payload %v", err)
-				continue
-			}
-			c.hub.broadcast <- messageData
+			c.leaveGame()
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
 
 	}
+}
+
+func (c *Client) joinGame(msg Message) {
+	var payload game.JoinGamePayload
+	err := json.Unmarshal(msg.Payload, &payload)
+	if err != nil {
+		log.Printf("failed to unmarshal payload %v", err)
+		return
+	}
+	fmt.Printf("player wants to join: %s\n", payload.PlayerName)
+	player := c.game.JoinGame(payload.PlayerName)
+	c.playerID = player.PlayerID
+	playerJoinedPayload := game.PlayerJoinedPayload{
+		PlayerID:   player.PlayerID,
+		PlayerName: player.PlayerName,
+	}
+	payloadData, err := json.Marshal(playerJoinedPayload)
+	if err != nil {
+		log.Printf("failed to marshal payload %v", err)
+		return
+	}
+	playerJoinedMessage := Message{
+		Type:    PlayerJoined,
+		Payload: payloadData,
+	}
+
+	messageData, err := json.Marshal(playerJoinedMessage)
+	if err != nil {
+		log.Printf("failed to marshal payload %v", err)
+		return
+	}
+
+	c.hub.broadcast <- messageData
+	fmt.Printf("players: %+v", c.game.Players)
+}
+
+func (c *Client) leaveGame() {
+	if c.playerID == 0 {
+		return
+	}
+	player, ok := c.game.LeaveGame(c.playerID)
+	if !ok {
+		return
+	}
+	c.playerID = 0
+	playerLeftPayload := game.PlayerLeftPayload{
+		PlayerID:   player.PlayerID,
+		PlayerName: player.PlayerName,
+	}
+	payloadData, err := json.Marshal(playerLeftPayload)
+	if err != nil {
+		log.Printf("failed to marshal payload %v", err)
+		return
+	}
+
+	playerLeftMessage := Message{
+		Type:    PlayerLeft,
+		Payload: payloadData,
+	}
+
+	messageData, err := json.Marshal(playerLeftMessage)
+	if err != nil {
+		log.Printf("failed to marshal payload %v", err)
+		return
+	}
+	c.hub.broadcast <- messageData
 }
 
 func (c *Client) writePump() {
