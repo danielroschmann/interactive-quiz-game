@@ -16,9 +16,19 @@ type PlayerLeftPayload struct {
 	PlayerID   uint   `json:"player_id"`
 	PlayerName string `json:"player_name"`
 }
+type GameState string
+
+const (
+	GameStateLobby      GameState = "lobby"
+	GameStateInProgress GameState = "in_progress"
+	GameStateFinished   GameState = "finished"
+)
 
 type Game struct {
 	Players      []Player
+	Teams        []Team
+	State        GameState
+	CurrentRound int
 	nextPlayerID uint
 }
 
