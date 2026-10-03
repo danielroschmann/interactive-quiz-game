@@ -1,7 +1,12 @@
 // Package game works as the game engine
 package game
 
-import "slices"
+import (
+	"errors"
+	"slices"
+)
+
+var ErrNotEnoughPlayers = errors.New("not enough players to start the game")
 
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
@@ -61,4 +66,13 @@ func (g *Game) LeaveGame(playerID uint) (Player, bool) {
 		}
 	}
 	return Player{}, false
+}
+
+func (g *Game) StartGame() error {
+	if len(g.Players) < 2 {
+		g.State = GameStateLobby
+		return ErrNotEnoughPlayers
+	}
+	g.State = GameStateInProgress
+	return nil
 }
