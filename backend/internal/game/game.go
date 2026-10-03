@@ -68,11 +68,20 @@ func (g *Game) LeaveGame(playerID uint) (Player, bool) {
 	return Player{}, false
 }
 
+func (g *Game) CreateTeams() []Team {
+	teams := []Team{}
+	for i := 0; i < 2; i++ {
+		teams = append(teams, NewTeam())
+	}
+	return teams
+}
+
 func (g *Game) StartGame() error {
 	if len(g.Players) < 2 {
 		g.State = GameStateLobby
 		return ErrNotEnoughPlayers
 	}
 	g.State = GameStateInProgress
+
 	return nil
 }
