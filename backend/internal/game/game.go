@@ -30,12 +30,34 @@ const (
 	GameStateFinished   GameState = "finished"
 )
 
+type RoundType string
+
+const (
+	RoundTypeMultipleChoice RoundType = "multiple_choice"
+	RoundTypeFastestBuzz    RoundType = "fastest_buzz"
+	RoundTypeChallenge      RoundType = "challenge"
+)
+
 type Game struct {
 	Players      []Player
 	Teams        []Team
 	State        GameState
+	Rounds       []Round
 	CurrentRound int
 	nextPlayerID uint
+}
+
+type Round struct {
+	RoundNumber int
+	Type        RoundType
+	Questions   []Question
+}
+
+type Question struct {
+	Name          string
+	Description   string
+	AnswerOptions []string
+	CorrectAnswer string
 }
 
 func NewGame() *Game {
@@ -113,6 +135,7 @@ func (g *Game) StartGame() error {
 	g.createTeams()
 
 	g.assignPlayersToTeams()
+	g.CurrentRound = 1
 	g.State = GameStateInProgress
 
 	return nil

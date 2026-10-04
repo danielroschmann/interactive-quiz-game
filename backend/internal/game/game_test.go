@@ -15,6 +15,10 @@ func TestStartGame_WithTwoPlayers_StartsGame(t *testing.T) {
 		t.Errorf("expected game to start, got error: %v", err)
 	}
 
+	if game.CurrentRound != 1 {
+		t.Errorf("expected current round to be %d got %d", 1, game.CurrentRound)
+	}
+
 	if game.State != GameStateInProgress {
 		t.Errorf("expected game state to be in progress, got %s", game.State)
 	}
