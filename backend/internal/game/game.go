@@ -3,6 +3,7 @@ package game
 
 import (
 	"errors"
+	"math/rand"
 	"slices"
 )
 
@@ -68,12 +69,39 @@ func (g *Game) LeaveGame(playerID uint) (Player, bool) {
 	return Player{}, false
 }
 
-func (g *Game) createTeams() []Team {
+func (g *Game) createTeams() {
 	team1 := NewTeam(1, "Team 1")
 	team2 := NewTeam(2, "Team 2")
 
-	teams := []Team{team1, team2}
-	return teams
+	g.Teams = []Team{team1, team2}
+}
+
+func (g *Game) assignPlayersToTeams() {
+	amountOfPlayers := len(g.Players)
+	rand.Shuffle(amountOfPlayers, func(i, j int) {
+		g.Players[i], g.Players[j] = g.Players[j], g.Players[i]
+	})
+
+	divideTeams := amountOfPlayers / 2
+
+	teamOneID := g.Teams[0].TeamID
+	teamTwoID := g.Teams[1].TeamID
+
+	teamOnePlayers := g.Players[:divideTeams]
+	g.Teams[0].PlayerIDs = make([]uint, len(teamOnePlayers))
+
+	for i := 0; i < len(teamOnePlayers); i++ {
+		teamOnePlayers[i].TeamID = &teamOneID
+		g.Teams[0].PlayerIDs[i] = teamOnePlayers[i].PlayerID
+	}
+
+	teamTwoPlayers := g.Players[divideTeams:]
+	g.Teams[1].PlayerIDs = make([]uint, len(teamTwoPlayers))
+
+	for i := 0; i < len(teamTwoPlayers); i++ {
+		teamTwoPlayers[i].TeamID = &teamTwoID
+		g.Teams[1].PlayerIDs[i] = teamTwoPlayers[i].PlayerID
+	}
 }
 
 func (g *Game) StartGame() error {
@@ -83,6 +111,8 @@ func (g *Game) StartGame() error {
 	}
 
 	g.createTeams()
+
+	g.assignPlayersToTeams()
 	g.State = GameStateInProgress
 
 	return nil
