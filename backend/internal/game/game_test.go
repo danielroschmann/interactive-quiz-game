@@ -131,3 +131,23 @@ func TestStartGame_WithFivePlayers_DistributesPlayersCorrect(t *testing.T) {
 		)
 	}
 }
+
+func TestStartGame_AssignsTeamIDToEveryPlayer(t *testing.T) {
+	game := NewGame()
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err := game.StartGame()
+	if err != nil {
+		t.Errorf("expected game to start, got err %v", err)
+	}
+
+	for _, p := range game.Players {
+		if p.TeamID == nil {
+			t.Errorf("expected player %d to have team id", p.PlayerID)
+		}
+	}
+}
