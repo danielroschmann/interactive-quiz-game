@@ -2,8 +2,11 @@
 package game
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"math/rand"
+	"os"
 	"slices"
 )
 
@@ -41,26 +44,25 @@ const (
 type Game struct {
 	Players      []Player
 	Teams        []Team
-	State        GameState
 	Rounds       []Round
+	State        GameState
 	CurrentRound int
 	nextPlayerID uint
 }
 
 type Round struct {
-	RoundNumber int
-	Type        RoundType
-	Questions   []Question
+	RoundNumber int        `json:"round_number"`
+	Type        RoundType  `json:"type"`
+	Questions   []Question `json:"questions"`
 }
 
 type Question struct {
-	Name          string
-	Description   string
-	AnswerOptions []string
-	CorrectAnswer string
+	Question      string   `json:"question"`
+	AnswerOptions []string `json:"answer_options"`
+	CorrectAnswer string   `json:"correct_answer"`
 }
 
-func NewGame() *Game {
+func NewGame(rounds []Round) *Game {
 	return &Game{
 		Players:      make([]Player, 0),
 		nextPlayerID: 1,
@@ -124,6 +126,29 @@ func (g *Game) assignPlayersToTeams() {
 		teamTwoPlayers[i].TeamID = &teamTwoID
 		g.Teams[1].PlayerIDs[i] = teamTwoPlayers[i].PlayerID
 	}
+}
+
+func LoadRounds(fileName string) ([]Round, error) {
+	jsonFile, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	defer jsonFile.Close()
+
+	questions, err := io.ReadAll(jsonFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var rounds []Round
+
+	err = json.Unmarshal(questions, &rounds)
+	if err != nil {
+		return nil, err
+	}
+
+	return rounds, nil
 }
 
 func (g *Game) StartGame() error {

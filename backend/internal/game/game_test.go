@@ -6,11 +6,15 @@ import (
 )
 
 func TestStartGame_WithTwoPlayers_StartsGame(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got error: %v", err)
 	}
@@ -25,10 +29,14 @@ func TestStartGame_WithTwoPlayers_StartsGame(t *testing.T) {
 }
 
 func TestStartGame_WithOnePlayer_ReturnsError(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if !errors.Is(err, ErrNotEnoughPlayers) {
 		t.Errorf("expected ErrNotEnoughPlayers, got %v", err)
 	}
@@ -39,13 +47,17 @@ func TestStartGame_WithOnePlayer_ReturnsError(t *testing.T) {
 }
 
 func TestStartGame_WithFourPlayers_CreatesTwoTeams(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
@@ -56,13 +68,17 @@ func TestStartGame_WithFourPlayers_CreatesTwoTeams(t *testing.T) {
 }
 
 func TestStartGame_WithFourPlayers_DistributesAllPlayers(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
@@ -95,13 +111,17 @@ func TestStartGame_WithFourPlayers_DistributesAllPlayers(t *testing.T) {
 }
 
 func TestStartGame_WithFourPlayers_DistributesPlayersEvenly(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
 	}
@@ -112,14 +132,18 @@ func TestStartGame_WithFourPlayers_DistributesPlayersEvenly(t *testing.T) {
 }
 
 func TestStartGame_WithFivePlayers_DistributesPlayersCorrect(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
 	}
@@ -137,14 +161,18 @@ func TestStartGame_WithFivePlayers_DistributesPlayersCorrect(t *testing.T) {
 }
 
 func TestStartGame_AssignsTeamIDToEveryPlayer(t *testing.T) {
-	game := NewGame()
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected rounds to load, got err %v", err)
+	}
+	game := NewGame(rounds)
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
-	err := game.StartGame()
+	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
 	}
@@ -153,5 +181,29 @@ func TestStartGame_AssignsTeamIDToEveryPlayer(t *testing.T) {
 		if p.TeamID == nil {
 			t.Errorf("expected player %d to have team id", p.PlayerID)
 		}
+	}
+}
+
+func TestLoadRounds_WithValidJSON(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+
+	if len(rounds) != 2 {
+		t.Errorf("expected 2 rounds, got %d", len(rounds))
+	}
+
+	if rounds[0].Type != RoundTypeMultipleChoice {
+		t.Errorf("expected type %s got %s", RoundTypeMultipleChoice, rounds[0].Type)
+	}
+
+	if len(rounds[0].Questions) != 2 {
+		t.Errorf("expected 2 questions, got %d", len(rounds[0].Questions))
+	}
+
+	if rounds[0].Questions[1].CorrectAnswer != "Baida" {
+		t.Errorf("expected correct answer %s got %s", "Baida", rounds[0].Questions[1].CorrectAnswer)
 	}
 }

@@ -1,0 +1,38 @@
+[
+  {
+    "round_number": 1,
+    "type": "multiple_choice",
+    "questions": [
+      {
+        "question": "Hvor gammel er Ida på dette billede?",
+        "answer_options": [
+          "13",
+          "10",
+          "9",
+          "8"
+        ],
+        "correct_answer": "10"
+      },
+      {
+        "question": "Hvad bliver Ida kaldt for af Daniel?",
+        "answer_options": [
+          "Musling",
+          "Baida",
+          "Rotten",
+          "Mus"
+        ],
+        "correct_answer": "Baida"
+      }
+    ]
+  },
+  {
+    "round_number": 2,
+    "type": "fastest_buzz",
+    "questions": [
+      {
+        "question": "Hvad hedder Ida til mellemnavn?",
+        "correct_answer": "Marie"
+      }
+    ]
+  }
+]
