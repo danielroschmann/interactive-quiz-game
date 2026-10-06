@@ -42,12 +42,13 @@ const (
 )
 
 type Game struct {
-	Players      []Player
-	Teams        []Team
-	Rounds       []Round
-	State        GameState
-	CurrentRound int
-	nextPlayerID uint
+	Players         []Player
+	Teams           []Team
+	Rounds          []Round
+	State           GameState
+	CurrentRound    int
+	CurrentQuestion int
+	nextPlayerID    uint
 }
 
 type Round struct {
@@ -160,7 +161,9 @@ func (g *Game) StartGame() error {
 	g.createTeams()
 
 	g.assignPlayersToTeams()
+
 	g.CurrentRound = 1
+	g.CurrentQuestion = 0
 	g.State = GameStateInProgress
 
 	return nil

@@ -207,3 +207,26 @@ func TestLoadRounds_WithValidJSON(t *testing.T) {
 		t.Errorf("expected correct answer %s got %s", "Baida", rounds[0].Questions[1].CorrectAnswer)
 	}
 }
+
+func TestStartGame_GameStartsAtFirstQuestion(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Errorf("expected game to start, got err %v", err)
+	}
+
+	if game.CurrentQuestion != 0 {
+		t.Errorf("expected current question to be index 0, got %d", game.CurrentQuestion)
+	}
+}
