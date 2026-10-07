@@ -285,3 +285,86 @@ func TestGetCurrentQuestion_ReturnsErrorWhenIndexOutOfRange(t *testing.T) {
 		t.Errorf("expected error %v got %v", ErrNoCurrentQuestion, err)
 	}
 }
+
+func TestGetNextQuestion_GoesFromQuestionZeroToOne(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	game.GetNextQuestion()
+	if game.CurrentQuestion != 1 {
+		t.Errorf("expected current question to be 1, got %d", game.CurrentQuestion)
+	}
+}
+
+func TestGetNextQuestion_GoesFromRoundOneToTwo(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	game.CurrentQuestion = len(rounds[0].Questions) - 1
+
+	game.GetNextQuestion()
+
+	if game.CurrentRound != 2 {
+		t.Errorf("expected round to be 2, got %d", game.CurrentRound)
+	}
+
+	if game.CurrentQuestion != 0 {
+		t.Errorf("expected current question to be 0, got %d", game.CurrentQuestion)
+	}
+}
+
+func TestGetNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	lastRoundIndex := len(game.Rounds) - 1
+
+	game.CurrentQuestion = len(rounds[lastRoundIndex].Questions) - 1
+	game.GetNextQuestion()
+
+	if game.State != GameStateFinished {
+		t.Errorf("expected game state to be finished, got %s ", game.State)
+	}
+}

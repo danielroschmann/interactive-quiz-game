@@ -169,6 +169,21 @@ func (g *Game) GetCurrentQuestion() (Question, error) {
 	return currentRound.Questions[questionIndex], nil
 }
 
+func (g *Game) GetNextQuestion() {
+	roundIndex := g.CurrentRound - 1
+	currentRound := g.Rounds[roundIndex]
+	if g.CurrentQuestion < len(currentRound.Questions)-1 {
+		g.CurrentQuestion++
+	} else {
+		if g.CurrentRound < len(g.Rounds) {
+			g.CurrentRound++
+			g.CurrentQuestion = 0
+		} else {
+			g.State = GameStateFinished
+		}
+	}
+}
+
 func (g *Game) StartGame() error {
 	if len(g.Players) < 2 {
 		g.State = GameStateLobby
