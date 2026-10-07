@@ -230,3 +230,58 @@ func TestStartGame_GameStartsAtFirstQuestion(t *testing.T) {
 		t.Errorf("expected current question to be index 0, got %d", game.CurrentQuestion)
 	}
 }
+
+func TestGetCurrentQuestion_ReturnsFirstQuestion(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	expectedQuestion := rounds[0].Questions[0]
+	currentQuestion, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Errorf("expected to get current question, got err %v", err)
+	}
+
+	if currentQuestion.Question != expectedQuestion.Question {
+		t.Errorf("expected question %s, got %s", expectedQuestion.Question, currentQuestion.Question)
+	}
+}
+
+func TestGetCurrentQuestion_ReturnsErrorWhenIndexOutOfRange(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	game.CurrentQuestion = 99
+
+	_, err = game.GetCurrentQuestion()
+	if !errors.Is(err, ErrNoCurrentQuestion) {
+		t.Errorf("expected error %v got %v", ErrNoCurrentQuestion, err)
+	}
+}

@@ -12,6 +12,8 @@ import (
 
 var ErrNotEnoughPlayers = errors.New("not enough players to start the game")
 
+var ErrNoCurrentQuestion = errors.New("no current question")
+
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
 }
@@ -66,6 +68,7 @@ type Question struct {
 func NewGame(rounds []Round) *Game {
 	return &Game{
 		Players:      make([]Player, 0),
+		Rounds:       rounds,
 		nextPlayerID: 1,
 	}
 }
@@ -150,6 +153,20 @@ func LoadRounds(fileName string) ([]Round, error) {
 	}
 
 	return rounds, nil
+}
+
+func (g *Game) GetCurrentQuestion() (Question, error) {
+	roundIndex := g.CurrentRound - 1
+	if roundIndex < 0 || roundIndex >= len(g.Rounds) {
+		return Question{}, ErrNoCurrentQuestion
+	}
+	currentRound := g.Rounds[roundIndex]
+	questionIndex := g.CurrentQuestion
+	if questionIndex < 0 || questionIndex >= len(currentRound.Questions) {
+		return Question{}, ErrNoCurrentQuestion
+	}
+
+	return currentRound.Questions[questionIndex], nil
 }
 
 func (g *Game) StartGame() error {
