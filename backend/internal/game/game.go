@@ -14,6 +14,8 @@ var ErrNotEnoughPlayers = errors.New("not enough players to start the game")
 
 var ErrNoCurrentQuestion = errors.New("no current question")
 
+var ErrNoCurrentRound = errors.New("no current round")
+
 var ErrPlayerNotFound = errors.New("player not found")
 
 type JoinGamePayload struct {
@@ -170,7 +172,13 @@ func (g *Game) GetCurrentQuestion() (Question, error) {
 	return currentRound.Questions[questionIndex], nil
 }
 
-func (g *Game) GetNextQuestion() {
+func (g *Game) GetCurrentRound() (Round, error) {
+	g.Rounds[g.CurrentRound].Type = RoundTypeMultipleChoice
+	g.Rounds[g.CurrentRound].RoundNumber = 1
+	return g.Rounds[g.CurrentRound], nil
+}
+
+func (g *Game) NextQuestion() {
 	roundIndex := g.CurrentRound - 1
 	currentRound := g.Rounds[roundIndex]
 	if g.CurrentQuestion < len(currentRound.Questions)-1 {

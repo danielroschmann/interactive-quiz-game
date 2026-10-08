@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+func initializeGame(t *testing.T) *Game {
+	t.Helper()
+
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+
+	game := NewGame(rounds)
+
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	if err := game.StartGame(); err != nil {
+		t.Fatalf("expected game to start, got %v", err)
+	}
+
+	return game
+}
+
 func TestStartGame_WithTwoPlayers_StartsGame(t *testing.T) {
 	rounds, err := LoadRounds("questions.json")
 	if err != nil {
@@ -286,7 +309,36 @@ func TestGetCurrentQuestion_ReturnsErrorWhenIndexOutOfRange(t *testing.T) {
 	}
 }
 
-func TestGetNextQuestion_GoesFromQuestionZeroToOne(t *testing.T) {
+func TestGetCurrentRound_ReturnsFirstRoundAndCorrectRoundType(t *testing.T) {
+	game := initializeGame(t)
+
+	expectedRound := 1
+	currentRound, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("expected to get current round, got %v", err)
+	}
+
+	if currentRound.RoundNumber != expectedRound {
+		t.Errorf("expected current round number to be %d, got %d", expectedRound, currentRound.RoundNumber)
+	}
+
+	if currentRound.Type != RoundTypeMultipleChoice {
+		t.Errorf("expected round type to be %s, got round type %s", RoundTypeMultipleChoice, currentRound.Type)
+	}
+}
+
+func TestGetCurrentRound_ReturnsErrorWhenIndexOutOfRange(t *testing.T) {
+	game := initializeGame(t)
+
+	game.CurrentRound = 99
+
+	_, err := game.GetCurrentRound()
+	if !errors.Is(err, ErrNoCurrentRound) {
+		t.Errorf("expected error %v got %v", ErrNoCurrentRound, err)
+	}
+}
+
+func TestNextQuestion_GoesFromQuestionZeroToOne(t *testing.T) {
 	fileName := "questions.json"
 	rounds, err := LoadRounds(fileName)
 	if err != nil {
@@ -304,7 +356,7 @@ func TestGetNextQuestion_GoesFromQuestionZeroToOne(t *testing.T) {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
 
-	game.GetNextQuestion()
+	game.NextQuestion()
 	if game.CurrentQuestion != 1 {
 		t.Errorf("expected current question to be 1, got %d", game.CurrentQuestion)
 	}
@@ -330,7 +382,7 @@ func TestGetNextQuestion_GoesFromRoundOneToTwo(t *testing.T) {
 
 	game.CurrentQuestion = len(rounds[0].Questions) - 1
 
-	game.GetNextQuestion()
+	game.NextQuestion()
 
 	if game.CurrentRound != 2 {
 		t.Errorf("expected round to be 2, got %d", game.CurrentRound)
@@ -341,7 +393,7 @@ func TestGetNextQuestion_GoesFromRoundOneToTwo(t *testing.T) {
 	}
 }
 
-func TestGetNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
+func TestNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
 	fileName := "questions.json"
 	rounds, err := LoadRounds(fileName)
 	if err != nil {
@@ -362,7 +414,7 @@ func TestGetNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
 	lastRoundIndex := len(game.Rounds) - 1
 	game.CurrentRound = lastRoundIndex + 1
 	game.CurrentQuestion = len(rounds[lastRoundIndex].Questions) - 1
-	game.GetNextQuestion()
+	game.NextQuestion()
 
 	if game.State != GameStateFinished {
 		t.Errorf("expected game state to be finished, got %s ", game.State)
