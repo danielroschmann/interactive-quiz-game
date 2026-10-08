@@ -76,7 +76,6 @@ func NewGame(rounds []Round) *Game {
 func (g *Game) JoinGame(playerName string) Player {
 	player := Player{
 		PlayerName: playerName,
-		Points:     0,
 		PlayerID:   g.nextPlayerID,
 	}
 	g.Players = append(g.Players, player)
@@ -182,6 +181,29 @@ func (g *Game) GetNextQuestion() {
 			g.State = GameStateFinished
 		}
 	}
+}
+
+func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
+	question, err := g.GetCurrentQuestion()
+	if err != nil {
+		return false, ErrNoCurrentQuestion
+	}
+
+	if answer != question.CorrectAnswer {
+		return false, nil
+	}
+	for i := range g.Players {
+		if g.Players[i].PlayerID == playerID {
+			playerTeamID := g.Players[i].TeamID
+
+			for j := range g.Teams {
+				if g.Teams[j].TeamID == *playerTeamID {
+					g.Teams[j].Points += 100
+				}
+			}
+		}
+	}
+	return true, nil
 }
 
 func (g *Game) StartGame() error {

@@ -360,11 +360,58 @@ func TestGetNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
 	}
 
 	lastRoundIndex := len(game.Rounds) - 1
-
+	game.CurrentRound = lastRoundIndex + 1
 	game.CurrentQuestion = len(rounds[lastRoundIndex].Questions) - 1
 	game.GetNextQuestion()
 
 	if game.State != GameStateFinished {
 		t.Errorf("expected game state to be finished, got %s ", game.State)
+	}
+}
+
+func TestSubmitAnswer_AssignPointsForCorrectAnswer(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	_, err = game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+	answer, err := game.SubmitAnswer(1, "10")
+	if err != nil {
+		t.Errorf("expected to get current question, got %v", err)
+	}
+
+	if !answer {
+		t.Errorf("expected answer to be correct")
+	}
+
+	playerID := uint(1)
+	for i := range game.Players {
+		if game.Players[i].PlayerID == playerID {
+			playerTeamID := game.Players[i].TeamID
+
+			for j := range game.Teams {
+				if game.Teams[j].TeamID == *playerTeamID {
+					if game.Teams[j].Points != 100 {
+						t.Errorf("expected team to have 100 points, got %d", game.Teams[j].Points)
+					}
+				}
+			}
+		}
 	}
 }
