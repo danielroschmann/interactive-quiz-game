@@ -415,3 +415,75 @@ func TestSubmitAnswer_AssignPointsForCorrectAnswer(t *testing.T) {
 		}
 	}
 }
+
+func TestSubmitAnswer_ReturnsFalseAndZeroPointsForWrongAnswer(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	_, err = game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+	answer, err := game.SubmitAnswer(1, "13")
+	if err != nil {
+		t.Errorf("expected to get current question, got %v", err)
+	}
+
+	if answer {
+		t.Errorf("expected answer to be wrong")
+	}
+
+	playerID := uint(1)
+	for i := range game.Players {
+		if game.Players[i].PlayerID == playerID {
+			playerTeamID := game.Players[i].TeamID
+
+			for j := range game.Teams {
+				if game.Teams[j].TeamID == *playerTeamID {
+					if game.Teams[j].Points != 0 {
+						t.Errorf("expected team to have 0 points, got %d", game.Teams[j].Points)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestSubmitAnswer_PlayerNotFoundReturnsErr(t *testing.T) {
+	fileName := "questions.json"
+	rounds, err := LoadRounds(fileName)
+	if err != nil {
+		t.Fatalf("expected to load rounds, got %v", err)
+	}
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+	game.JoinGame("Foo")
+	game.JoinGame("Bar")
+	game.JoinGame("Troy")
+
+	err = game.StartGame()
+	if err != nil {
+		t.Fatalf("expected game to start, got err %v", err)
+	}
+
+	_, err = game.SubmitAnswer(999, "10")
+
+	if !errors.Is(err, ErrPlayerNotFound) {
+		t.Errorf("expected error %v got error %v", ErrPlayerNotFound, err)
+	}
+}

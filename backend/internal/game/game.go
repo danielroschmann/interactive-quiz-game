@@ -14,6 +14,8 @@ var ErrNotEnoughPlayers = errors.New("not enough players to start the game")
 
 var ErrNoCurrentQuestion = errors.New("no current question")
 
+var ErrPlayerNotFound = errors.New("player not found")
+
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
 }
@@ -189,18 +191,24 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 		return false, ErrNoCurrentQuestion
 	}
 
-	if answer != question.CorrectAnswer {
-		return false, nil
-	}
+	var playerTeamID *uint
 	for i := range g.Players {
 		if g.Players[i].PlayerID == playerID {
-			playerTeamID := g.Players[i].TeamID
+			playerTeamID = g.Players[i].TeamID
+			break
+		}
+	}
+	if playerTeamID == nil {
+		return false, ErrPlayerNotFound
+	}
 
-			for j := range g.Teams {
-				if g.Teams[j].TeamID == *playerTeamID {
-					g.Teams[j].Points += 100
-				}
-			}
+	if question.CorrectAnswer != answer {
+		return false, nil
+	}
+
+	for j := range g.Teams {
+		if g.Teams[j].TeamID == *playerTeamID {
+			g.Teams[j].Points += 100
 		}
 	}
 	return true, nil
