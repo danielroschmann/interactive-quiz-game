@@ -159,11 +159,10 @@ func LoadRounds(fileName string) ([]Round, error) {
 }
 
 func (g *Game) GetCurrentQuestion() (Question, error) {
-	roundIndex := g.CurrentRound - 1
-	if roundIndex < 0 || roundIndex >= len(g.Rounds) {
+	currentRound, err := g.GetCurrentRound()
+	if err != nil {
 		return Question{}, ErrNoCurrentQuestion
 	}
-	currentRound := g.Rounds[roundIndex]
 	questionIndex := g.CurrentQuestion
 	if questionIndex < 0 || questionIndex >= len(currentRound.Questions) {
 		return Question{}, ErrNoCurrentQuestion
@@ -173,14 +172,18 @@ func (g *Game) GetCurrentQuestion() (Question, error) {
 }
 
 func (g *Game) GetCurrentRound() (Round, error) {
-	g.Rounds[g.CurrentRound].Type = RoundTypeMultipleChoice
-	g.Rounds[g.CurrentRound].RoundNumber = 1
-	return g.Rounds[g.CurrentRound], nil
+	roundIndex := g.CurrentRound - 1
+	if roundIndex < 0 || roundIndex >= len(g.Rounds) {
+		return Round{}, ErrNoCurrentRound
+	}
+	return g.Rounds[roundIndex], nil
 }
 
 func (g *Game) NextQuestion() {
-	roundIndex := g.CurrentRound - 1
-	currentRound := g.Rounds[roundIndex]
+	currentRound, err := g.GetCurrentRound()
+	if err != nil {
+		return
+	}
 	if g.CurrentQuestion < len(currentRound.Questions)-1 {
 		g.CurrentQuestion++
 	} else {
