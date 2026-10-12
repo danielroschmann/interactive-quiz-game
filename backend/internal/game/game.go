@@ -20,6 +20,8 @@ var ErrPlayerNotFound = errors.New("player not found")
 
 var ErrAlreadyBuzzed = errors.New("player already buzzed")
 
+var ErrNotBuzzedPlayer = errors.New("player did not win the buzz")
+
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
 }
@@ -187,6 +189,7 @@ func (g *Game) NextQuestion() {
 	if err != nil {
 		return
 	}
+	g.BuzzedPlayerID = nil
 	if g.CurrentQuestion < len(currentRound.Questions)-1 {
 		g.CurrentQuestion++
 	} else {
@@ -221,6 +224,10 @@ func (g *Game) Buzz(playerID uint) error {
 }
 
 func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
+	currentRound, err := g.GetCurrentRound()
+	if err != nil {
+		return false, ErrNoCurrentRound
+	}
 	question, err := g.GetCurrentQuestion()
 	if err != nil {
 		return false, ErrNoCurrentQuestion
@@ -235,6 +242,34 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 	}
 	if playerTeamID == nil {
 		return false, ErrPlayerNotFound
+	}
+
+	switch currentRound.Type {
+	case RoundTypeMultipleChoice:
+		// logik for multiple choice
+	case RoundTypeFastestBuzz:
+		if g.BuzzedPlayerID == nil {
+			return false, ErrNotBuzzedPlayer
+		}
+		if *g.BuzzedPlayerID != playerID {
+			return false, ErrNotBuzzedPlayer
+		}
+
+		for i := range g.Teams {
+			if g.Teams[i].TeamID == *playerTeamID {
+				if question.CorrectAnswer != answer {
+					g.Teams[i].Points -= 100
+				} else {
+					g.Teams[i].Points += 100
+				}
+			}
+		}
+		g.NextQuestion()
+		return question.CorrectAnswer == answer, nil
+
+		// logik for fastest buzz
+	case RoundTypeChallenge:
+		// logik for challenges
 	}
 
 	if question.CorrectAnswer != answer {

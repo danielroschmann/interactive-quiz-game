@@ -597,3 +597,79 @@ func TestBuzz_CorrectBuzz(t *testing.T) {
 		t.Errorf("expected BuzzPLayerID to be %d, got %d", firstPlayerID, *game.BuzzedPlayerID)
 	}
 }
+
+func TestSubmitAnswer_NonBuzzedPlayerReturnsError(t *testing.T) {
+	game := initializeGame(t)
+	game.CurrentRound = 2
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round")
+	}
+	if round.Type != RoundTypeFastestBuzz {
+		t.Fatalf("expected roundtype to be %s got %s", RoundTypeFastestBuzz, round.Type)
+	}
+	question, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+
+	firstPlayerID := uint(1)
+	secondPlayerID := uint(2)
+	err = game.Buzz(firstPlayerID)
+	if err != nil {
+		t.Fatalf("expected first player to buzz succesfully, got err %v", err)
+	}
+
+	_, err = game.SubmitAnswer(secondPlayerID, question.CorrectAnswer)
+	if !errors.Is(err, ErrNotBuzzedPlayer) {
+		t.Errorf("expected err %v, got %v", ErrNotBuzzedPlayer, err)
+	}
+}
+
+func TestSubmitAnswer_CorrectAnswerInBuzzRound(t *testing.T) {
+	game := initializeGame(t)
+	game.CurrentRound = 2
+	playerID := uint(1)
+	var playerTeamID *uint
+
+	for i := range game.Players {
+		if game.Players[i].PlayerID == playerID {
+			playerTeamID = game.Players[i].TeamID
+			break
+		}
+	}
+	if playerTeamID == nil {
+		t.Fatalf("player team ID was not found")
+	}
+
+	pointsBefore := 0
+	for j := range game.Teams {
+		if game.Teams[j].TeamID == *playerTeamID {
+			pointsBefore = game.Teams[j].Points
+		}
+	}
+
+	question, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+	err = game.Buzz(playerID)
+	if err != nil {
+		t.Fatalf("could not buzz")
+	}
+	answer, err := game.SubmitAnswer(playerID, question.CorrectAnswer)
+	if err != nil {
+		t.Fatalf("expected to submit answer, got err %v", err)
+	}
+
+	if !answer {
+		t.Fatalf("expected correct answer to return true")
+	}
+	for j := range game.Teams {
+		if game.Teams[j].TeamID == *playerTeamID {
+			if game.Teams[j].Points != pointsBefore+100 {
+				t.Errorf("expected team to have %d points, got %d", pointsBefore+100, game.Teams[j].Points)
+			}
+		}
+	}
+}
