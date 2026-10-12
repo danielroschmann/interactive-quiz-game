@@ -18,6 +18,8 @@ var ErrNoCurrentRound = errors.New("no current round")
 
 var ErrPlayerNotFound = errors.New("player not found")
 
+var ErrAlreadyBuzzed = errors.New("player already buzzed")
+
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
 }
@@ -55,6 +57,7 @@ type Game struct {
 	CurrentRound    int
 	CurrentQuestion int
 	nextPlayerID    uint
+	BuzzedPlayerID  *uint
 }
 
 type Round struct {
@@ -194,6 +197,27 @@ func (g *Game) NextQuestion() {
 			g.State = GameStateFinished
 		}
 	}
+}
+
+func (g *Game) Buzz(playerID uint) error {
+	var player *uint
+	for i := range g.Players {
+		if g.Players[i].PlayerID == playerID {
+			player = &g.Players[i].PlayerID
+			break
+		}
+	}
+	if player == nil {
+		return ErrPlayerNotFound
+	}
+
+	if g.BuzzedPlayerID != nil {
+		return ErrAlreadyBuzzed
+	}
+
+	g.BuzzedPlayerID = player
+
+	return nil
 }
 
 func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {

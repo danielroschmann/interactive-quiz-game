@@ -539,3 +539,61 @@ func TestSubmitAnswer_PlayerNotFoundReturnsErr(t *testing.T) {
 		t.Errorf("expected error %v got error %v", ErrPlayerNotFound, err)
 	}
 }
+
+func TestBuzz_PlayerNotFound(t *testing.T) {
+	game := initializeGame(t)
+
+	err := game.Buzz(999)
+
+	if !errors.Is(err, ErrPlayerNotFound) {
+		t.Errorf("expected error %v, got %v", ErrPlayerNotFound, err)
+	}
+}
+
+func TestBuzz_PlayerAlreadyBuzzed(t *testing.T) {
+	game := initializeGame(t)
+
+	firstPlayerID := uint(1)
+	game.BuzzedPlayerID = &firstPlayerID
+
+	err := game.Buzz(2)
+
+	if !errors.Is(err, ErrAlreadyBuzzed) {
+		t.Errorf("expected error %v, got %v", ErrAlreadyBuzzed, err)
+	}
+}
+
+func TestBuzz_ReturnsErrAlreadyBuzzed(t *testing.T) {
+	game := initializeGame(t)
+
+	firstPlayerID := uint(1)
+	secondPlayerID := uint(2)
+	err := game.Buzz(firstPlayerID)
+	if err != nil {
+		t.Fatalf("expected first player to buzz succesfully, got err %v", err)
+	}
+
+	err = game.Buzz(secondPlayerID)
+
+	if !errors.Is(err, ErrAlreadyBuzzed) {
+		t.Errorf("expected error %v, got %v", ErrAlreadyBuzzed, err)
+	}
+}
+
+func TestBuzz_CorrectBuzz(t *testing.T) {
+	game := initializeGame(t)
+
+	firstPlayerID := uint(1)
+	err := game.Buzz(firstPlayerID)
+	if err != nil {
+		t.Fatalf("expected first player to buzz succesfully, got err %v", err)
+	}
+
+	if game.BuzzedPlayerID == nil {
+		t.Errorf("expected BuzzedPlayerID to be set, got nil")
+	}
+
+	if *game.BuzzedPlayerID != firstPlayerID {
+		t.Errorf("expected BuzzPLayerID to be %d, got %d", firstPlayerID, *game.BuzzedPlayerID)
+	}
+}
