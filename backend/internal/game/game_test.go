@@ -673,3 +673,72 @@ func TestSubmitAnswer_CorrectAnswerInBuzzRound(t *testing.T) {
 		}
 	}
 }
+
+func TestSubmitAnswer_WrongAnswerInBuzzRound(t *testing.T) {
+	game := initializeGame(t)
+	game.CurrentRound = 2
+	playerID := uint(1)
+	var playerTeamID *uint
+
+	for i := range game.Players {
+		if game.Players[i].PlayerID == playerID {
+			playerTeamID = game.Players[i].TeamID
+			break
+		}
+	}
+	if playerTeamID == nil {
+		t.Fatalf("player team ID was not found")
+	}
+
+	pointsBefore := 0
+	for j := range game.Teams {
+		if game.Teams[j].TeamID == *playerTeamID {
+			pointsBefore = game.Teams[j].Points
+		}
+	}
+
+	_, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+	err = game.Buzz(playerID)
+	if err != nil {
+		t.Fatalf("could not buzz")
+	}
+	roundBefore := game.CurrentRound
+	questionBefore := game.CurrentQuestion
+	answer, err := game.SubmitAnswer(playerID, "Wrong Answer")
+	if err != nil {
+		t.Fatalf("expected to submit answer, got err %v", err)
+	}
+
+	questionsInRound := len(game.Rounds[roundBefore-1].Questions)
+
+	if questionBefore < questionsInRound-1 {
+		if game.CurrentQuestion != questionBefore+1 {
+			t.Errorf("expected question index %d, got %d", questionBefore+1, game.CurrentQuestion)
+		}
+	} else if roundBefore < len(game.Rounds) {
+		if game.CurrentRound != roundBefore+1 {
+			t.Errorf("expected round %d, got %d", roundBefore+1, game.CurrentRound)
+		}
+		if game.CurrentQuestion != 0 {
+			t.Errorf("expected question index 0, got %d", game.CurrentQuestion)
+		}
+	} else {
+		if game.State != GameStateFinished {
+			t.Errorf("expected game state %s, got %s", GameStateFinished, game.State)
+		}
+	}
+
+	if answer {
+		t.Fatalf("expected wrong answer to be false")
+	}
+	for j := range game.Teams {
+		if game.Teams[j].TeamID == *playerTeamID {
+			if game.Teams[j].Points != pointsBefore-100 {
+				t.Errorf("expected team to have %d points, got %d", pointsBefore-100, game.Teams[j].Points)
+			}
+		}
+	}
+}
