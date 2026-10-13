@@ -10,21 +10,18 @@ import (
 	"slices"
 )
 
-var ErrNotEnoughPlayers = errors.New("not enough players to start the game")
-
-var ErrNoCurrentQuestion = errors.New("no current question")
-
-var ErrNoCurrentRound = errors.New("no current round")
-
-var ErrPlayerNotFound = errors.New("player not found")
-
-var ErrAlreadyBuzzed = errors.New("player already buzzed")
-
-var ErrNotBuzzedPlayer = errors.New("player did not win the buzz")
-
-var ErrGameNotInProgress = errors.New("game not in progress")
-
-var ErrWrongRoundType = errors.New("wrong round type")
+var (
+	ErrNotEnoughPlayers     = errors.New("not enough players to start the game")
+	ErrNoCurrentQuestion    = errors.New("no current question")
+	ErrNoCurrentRound       = errors.New("no current round")
+	ErrPlayerNotFound       = errors.New("player not found")
+	ErrAlreadyBuzzed        = errors.New("player already buzzed")
+	ErrNotBuzzedPlayer      = errors.New("player did not win the buzz")
+	ErrGameNotInProgress    = errors.New("game not in progress")
+	ErrWrongRoundType       = errors.New("wrong round type")
+	ErrUnsupportedRoundType = errors.New("round type not supported")
+	ErrInvalidRoundType     = errors.New("invalid round type")
+)
 
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
@@ -67,15 +64,21 @@ type Game struct {
 }
 
 type Round struct {
-	RoundNumber int        `json:"round_number"`
-	Type        RoundType  `json:"type"`
-	Questions   []Question `json:"questions"`
+	RoundNumber int         `json:"round_number"`
+	Type        RoundType   `json:"type"`
+	Questions   []Question  `json:"questions,omitempty"`
+	Challenges  []Challenge `json:"challenges,omitempty"`
 }
 
 type Question struct {
 	Question      string   `json:"question"`
 	AnswerOptions []string `json:"answer_options"`
 	CorrectAnswer string   `json:"correct_answer"`
+}
+
+type Challenge struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 func NewGame(rounds []Round) *Game {
@@ -245,9 +248,13 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 	if err != nil {
 		return false, ErrNoCurrentRound
 	}
-	question, err := g.GetCurrentQuestion()
-	if err != nil {
-		return false, ErrNoCurrentQuestion
+	var question Question
+	if currentRound.Type == RoundTypeMultipleChoice || currentRound.Type == RoundTypeFastestBuzz {
+		question, err = g.GetCurrentQuestion()
+		if err != nil {
+			return false, ErrNoCurrentQuestion
+		}
+
 	}
 
 	var playerTeamID *uint
@@ -283,10 +290,11 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 		}
 		g.NextQuestion()
 		return question.CorrectAnswer == answer, nil
-
-		// logik for fastest buzz
 	case RoundTypeChallenge:
+		return false, ErrUnsupportedRoundType
 		// logik for challenges
+	default:
+		return false, ErrInvalidRoundType
 	}
 
 	if question.CorrectAnswer != answer {

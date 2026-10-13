@@ -232,7 +232,7 @@ func TestLoadRounds_WithValidJSON(t *testing.T) {
 		t.Fatalf("expected to load rounds, got %v", err)
 	}
 
-	if len(rounds) != 2 {
+	if len(rounds) != 3 {
 		t.Errorf("expected 2 rounds, got %d", len(rounds))
 	}
 
@@ -817,5 +817,50 @@ func TestSubmitAnswer_GameFinished(t *testing.T) {
 
 	if !errors.Is(err, ErrGameNotInProgress) {
 		t.Errorf("expected error %v, got %v", ErrGameNotInProgress, err)
+	}
+}
+
+func TestSubmitAnswer_NoPlayerHasBuzzed(t *testing.T) {
+	game := initializeBuzzRoundGame(t)
+
+	game.BuzzedPlayerID = nil
+
+	_, err := game.SubmitAnswer(1, "random answer")
+
+	if !errors.Is(err, ErrNotBuzzedPlayer) {
+		t.Errorf("expected error %v, got %v", ErrNotBuzzedPlayer, err)
+	}
+}
+
+func TestSubmitAnswer_ChallengeRoundNotSupported(t *testing.T) {
+	game := initializeGame(t)
+
+	// challenge round
+	game.CurrentRound = 3
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type %s, got %s", RoundTypeChallenge, round.Type)
+	}
+	_, err = game.SubmitAnswer(1, "random answer")
+
+	if !errors.Is(err, ErrUnsupportedRoundType) {
+		t.Errorf("expected error %v, got %v", ErrUnsupportedRoundType, err)
+	}
+}
+
+func TestSubmitAnswer_InvalidRoundType(t *testing.T) {
+	game := initializeGame(t)
+
+	game.Rounds[game.CurrentRound-1].Type = RoundType("invalid_type")
+
+	_, err := game.SubmitAnswer(1, "random answer")
+
+	if !errors.Is(err, ErrInvalidRoundType) {
+		t.Errorf("expected error %v, got %v", ErrInvalidRoundType, err)
 	}
 }

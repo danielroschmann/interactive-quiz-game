@@ -34,5 +34,15 @@
         "correct_answer": "Marie"
       }
     ]
+  },
+  {
+    "round_number": 3,
+    "type": "challenge",
+    "challenges": [
+      {
+        "title": "Hvem er hurtigst til at bunde?",
+        "description": "Hvert hold vælger en deltager, der skal bunde en øl."
+      }
+    ]
   }
 ]
