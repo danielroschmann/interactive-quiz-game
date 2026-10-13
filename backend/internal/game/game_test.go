@@ -795,3 +795,27 @@ func TestBuzz_WrongRoundType(t *testing.T) {
 		t.Errorf("expected error %v, got %v", ErrWrongRoundType, err)
 	}
 }
+
+func TestSubmitAnswer_GameNotInProgressInLobby(t *testing.T) {
+	game := initializeGame(t)
+
+	game.State = GameStateLobby
+
+	_, err := game.SubmitAnswer(1, "random answer")
+
+	if !errors.Is(err, ErrGameNotInProgress) {
+		t.Errorf("expected error %v, got %v", ErrGameNotInProgress, err)
+	}
+}
+
+func TestSubmitAnswer_GameFinished(t *testing.T) {
+	game := initializeGame(t)
+
+	game.State = GameStateFinished
+
+	_, err := game.SubmitAnswer(1, "random answer")
+
+	if !errors.Is(err, ErrGameNotInProgress) {
+		t.Errorf("expected error %v, got %v", ErrGameNotInProgress, err)
+	}
+}

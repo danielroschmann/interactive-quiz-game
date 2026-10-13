@@ -238,6 +238,9 @@ func (g *Game) Buzz(playerID uint) error {
 }
 
 func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
+	if g.State != GameStateInProgress {
+		return false, ErrGameNotInProgress
+	}
 	currentRound, err := g.GetCurrentRound()
 	if err != nil {
 		return false, ErrNoCurrentRound
