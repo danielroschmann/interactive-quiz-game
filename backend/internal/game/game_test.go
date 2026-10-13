@@ -28,6 +28,24 @@ func initializeGame(t *testing.T) *Game {
 	return game
 }
 
+func initializeBuzzRoundGame(t *testing.T) *Game {
+	t.Helper()
+
+	game := initializeGame(t)
+	game.CurrentRound = 2
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round: %v", err)
+	}
+	if round.Type != RoundTypeFastestBuzz {
+		t.Fatalf("expected round type %s, got %s",
+			RoundTypeFastestBuzz, round.Type)
+	}
+
+	return game
+}
+
 func TestStartGame_WithTwoPlayers_StartsGame(t *testing.T) {
 	rounds, err := LoadRounds("questions.json")
 	if err != nil {
@@ -541,7 +559,7 @@ func TestSubmitAnswer_PlayerNotFoundReturnsErr(t *testing.T) {
 }
 
 func TestBuzz_PlayerNotFound(t *testing.T) {
-	game := initializeGame(t)
+	game := initializeBuzzRoundGame(t)
 
 	err := game.Buzz(999)
 
@@ -551,7 +569,7 @@ func TestBuzz_PlayerNotFound(t *testing.T) {
 }
 
 func TestBuzz_PlayerAlreadyBuzzed(t *testing.T) {
-	game := initializeGame(t)
+	game := initializeBuzzRoundGame(t)
 
 	firstPlayerID := uint(1)
 	game.BuzzedPlayerID = &firstPlayerID
@@ -564,7 +582,7 @@ func TestBuzz_PlayerAlreadyBuzzed(t *testing.T) {
 }
 
 func TestBuzz_ReturnsErrAlreadyBuzzed(t *testing.T) {
-	game := initializeGame(t)
+	game := initializeBuzzRoundGame(t)
 
 	firstPlayerID := uint(1)
 	secondPlayerID := uint(2)
@@ -581,8 +599,7 @@ func TestBuzz_ReturnsErrAlreadyBuzzed(t *testing.T) {
 }
 
 func TestBuzz_CorrectBuzz(t *testing.T) {
-	game := initializeGame(t)
-
+	game := initializeBuzzRoundGame(t)
 	firstPlayerID := uint(1)
 	err := game.Buzz(firstPlayerID)
 	if err != nil {
@@ -740,5 +757,41 @@ func TestSubmitAnswer_WrongAnswerInBuzzRound(t *testing.T) {
 				t.Errorf("expected team to have %d points, got %d", pointsBefore-100, game.Teams[j].Points)
 			}
 		}
+	}
+}
+
+func TestBuzz_GameNotInProgressInLobby(t *testing.T) {
+	game := initializeBuzzRoundGame(t)
+
+	game.State = GameStateLobby
+
+	err := game.Buzz(1)
+
+	if !errors.Is(err, ErrGameNotInProgress) {
+		t.Errorf("expected error %v, got %v", ErrGameNotInProgress, err)
+	}
+}
+
+func TestBuzz_GameFinished(t *testing.T) {
+	game := initializeBuzzRoundGame(t)
+
+	game.State = GameStateFinished
+
+	err := game.Buzz(1)
+
+	if !errors.Is(err, ErrGameNotInProgress) {
+		t.Errorf("expected error %v, got %v", ErrGameNotInProgress, err)
+	}
+}
+
+func TestBuzz_WrongRoundType(t *testing.T) {
+	game := initializeBuzzRoundGame(t)
+	// multiple choice
+	game.CurrentRound = 1
+
+	err := game.Buzz(1)
+
+	if !errors.Is(err, ErrWrongRoundType) {
+		t.Errorf("expected error %v, got %v", ErrWrongRoundType, err)
 	}
 }

@@ -22,6 +22,10 @@ var ErrAlreadyBuzzed = errors.New("player already buzzed")
 
 var ErrNotBuzzedPlayer = errors.New("player did not win the buzz")
 
+var ErrGameNotInProgress = errors.New("game not in progress")
+
+var ErrWrongRoundType = errors.New("wrong round type")
+
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
 }
@@ -203,6 +207,16 @@ func (g *Game) NextQuestion() {
 }
 
 func (g *Game) Buzz(playerID uint) error {
+	if g.State != GameStateInProgress {
+		return ErrGameNotInProgress
+	}
+	currentRound, err := g.GetCurrentRound()
+	if err != nil {
+		return ErrNoCurrentRound
+	}
+	if currentRound.Type != RoundTypeFastestBuzz {
+		return ErrWrongRoundType
+	}
 	var player *uint
 	for i := range g.Players {
 		if g.Players[i].PlayerID == playerID {
