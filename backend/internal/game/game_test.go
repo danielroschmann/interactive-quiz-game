@@ -1058,3 +1058,150 @@ func TestGetCurrentChallenge_NoCurrentChallenge(t *testing.T) {
 		t.Errorf("expected error %v, got %v", ErrNoCurrentChallenge, err)
 	}
 }
+
+func TestCompleteChallenge_AwardsPointsAndAdvancesToNextChallenge(t *testing.T) {
+	game := initializeGame(t)
+
+	game.CurrentRound = 3
+	game.CurrentItem = 0
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type %s, got %s", RoundTypeChallenge, round.Type)
+	}
+
+	if len(round.Challenges) < 2 {
+		t.Fatalf("expected at least 2 challenges, got %d", len(round.Challenges))
+	}
+
+	pointsBefore := make(map[uint]int)
+	for i := range game.Teams {
+		pointsBefore[game.Teams[i].TeamID] = game.Teams[i].Points
+	}
+
+	teamPoints := map[uint]int{
+		game.Teams[0].TeamID: 100,
+		game.Teams[1].TeamID: 0,
+	}
+	err = game.CompleteChallenge(teamPoints)
+	if err != nil {
+		t.Fatalf("could not complete challenge %v", err)
+	}
+
+	for i := range game.Teams {
+		team := game.Teams[i]
+		expectedPoints := pointsBefore[team.TeamID] + teamPoints[team.TeamID]
+
+		if team.Points != expectedPoints {
+			t.Errorf("expected team %d to have %d points, got %d", team.TeamID, expectedPoints, team.Points)
+		}
+	}
+
+	if game.CurrentItem != 1 {
+		t.Errorf("expected current item to rise to 1, got %d", game.CurrentItem)
+	}
+
+	if game.CurrentRound != 3 {
+		t.Errorf("expected current round to stay at 3, got %d", game.CurrentRound)
+	}
+
+	if game.State != GameStateInProgress {
+		t.Errorf("expected game state to be %s, got %s", GameStateInProgress, game.State)
+	}
+}
+
+func TestCompleteChallenge_MissingTeamID(t *testing.T) {
+	game := initializeGame(t)
+	game.CurrentRound = len(game.Rounds)
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type %s, got %s", RoundTypeChallenge, round.Type)
+	}
+
+	if len(round.Challenges) == 0 {
+		t.Fatalf("expected at least one challenge")
+	}
+
+	pointsBefore := make(map[uint]int)
+	for i := range game.Teams {
+		pointsBefore[game.Teams[i].TeamID] = game.Teams[i].Points
+	}
+
+	missingTeamID := game.Teams[0].TeamID
+	teamPoints := make(map[uint]int)
+	for i := range game.Teams {
+		teamID := game.Teams[i].TeamID
+		if teamID == missingTeamID {
+			continue
+		}
+		teamPoints[teamID] = 100
+	}
+
+	err = game.CompleteChallenge(teamPoints)
+	if !errors.Is(err, ErrInvalidTeamPoints) {
+		t.Fatalf("expected error %v, got %v", ErrInvalidTeamPoints, err)
+	}
+
+	for i := range game.Teams {
+		team := game.Teams[i]
+		if team.Points != pointsBefore[team.TeamID] {
+			t.Errorf("expected team %d to retain %d points, got %d", team.TeamID, pointsBefore[team.TeamID], team.Points)
+		}
+	}
+}
+
+func TestCompleteChallenge_UnknownTeamID(t *testing.T) {
+	game := initializeGame(t)
+	game.CurrentRound = len(game.Rounds)
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type %s, got %s", RoundTypeChallenge, round.Type)
+	}
+
+	if len(round.Challenges) == 0 {
+		t.Fatalf("expected at least one challenge")
+	}
+
+	pointsBefore := make(map[uint]int)
+	teamPoints := make(map[uint]int)
+
+	var unknwonTeamID uint = 1
+	for i := range game.Teams {
+		team := game.Teams[i]
+		pointsBefore[team.TeamID] = team.Points
+		teamPoints[team.TeamID] = 100
+
+		if team.TeamID >= unknwonTeamID {
+			unknwonTeamID = team.TeamID + 1
+		}
+	}
+
+	teamPoints[unknwonTeamID] = 50
+
+	err = game.CompleteChallenge(teamPoints)
+
+	if !errors.Is(err, ErrInvalidTeamPoints) {
+		t.Fatalf("expected error %v got %v", ErrInvalidTeamPoints, err)
+	}
+
+	for i := range game.Teams {
+		team := game.Teams[i]
+		if team.Points != pointsBefore[team.TeamID] {
+			t.Errorf("expected team %d to retain %d points, got %d", team.TeamID, pointsBefore[team.TeamID], team.Points)
+		}
+	}
+}

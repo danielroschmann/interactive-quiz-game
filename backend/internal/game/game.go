@@ -22,6 +22,7 @@ var (
 	ErrUnsupportedRoundType = errors.New("round type not supported")
 	ErrInvalidRoundType     = errors.New("invalid round type")
 	ErrNoCurrentChallenge   = errors.New("no current challenge")
+	ErrInvalidTeamPoints    = errors.New("invalid team points")
 )
 
 type JoinGamePayload struct {
@@ -175,6 +176,10 @@ func (g *Game) GetCurrentQuestion() (Question, error) {
 	currentRound, err := g.GetCurrentRound()
 	if err != nil {
 		return Question{}, ErrNoCurrentQuestion
+	}
+
+	if currentRound.Type != RoundTypeMultipleChoice && currentRound.Type != RoundTypeFastestBuzz {
+		return Question{}, ErrWrongRoundType
 	}
 	questionIndex := g.CurrentItem
 	if questionIndex < 0 || questionIndex >= len(currentRound.Questions) {
@@ -337,6 +342,54 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 	default:
 		return false, ErrInvalidRoundType
 	}
+}
+
+func (g *Game) CompleteChallenge(teamPoints map[uint]int) error {
+	if g.State != GameStateInProgress {
+		return ErrGameNotInProgress
+	}
+	round, err := g.GetCurrentRound()
+	if err != nil {
+		return ErrNoCurrentRound
+	}
+	if round.Type != RoundTypeChallenge {
+		return ErrWrongRoundType
+	}
+
+	_, err = g.GetCurrentChallenge()
+	if err != nil {
+		return err
+	}
+
+	for teamID := range teamPoints {
+		found := false
+
+		for i := range g.Teams {
+			if g.Teams[i].TeamID == teamID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return ErrInvalidTeamPoints
+		}
+	}
+
+	for i := range g.Teams {
+		teamID := g.Teams[i].TeamID
+		_, exists := teamPoints[teamID]
+		if !exists {
+			return ErrInvalidTeamPoints
+		}
+	}
+
+	for i := range g.Teams {
+		teamID := g.Teams[i].TeamID
+		pointsToAward := teamPoints[teamID]
+		g.Teams[i].Points += pointsToAward
+	}
+	g.NextItem()
+	return nil
 }
 
 func (g *Game) StartGame() error {
