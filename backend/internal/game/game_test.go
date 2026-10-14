@@ -267,8 +267,8 @@ func TestStartGame_GameStartsAtFirstQuestion(t *testing.T) {
 		t.Errorf("expected game to start, got err %v", err)
 	}
 
-	if game.CurrentQuestion != 0 {
-		t.Errorf("expected current question to be index 0, got %d", game.CurrentQuestion)
+	if game.CurrentItem != 0 {
+		t.Errorf("expected current question to be index 0, got %d", game.CurrentItem)
 	}
 }
 
@@ -319,7 +319,7 @@ func TestGetCurrentQuestion_ReturnsErrorWhenIndexOutOfRange(t *testing.T) {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
 
-	game.CurrentQuestion = 99
+	game.CurrentItem = 99
 
 	_, err = game.GetCurrentQuestion()
 	if !errors.Is(err, ErrNoCurrentQuestion) {
@@ -374,9 +374,9 @@ func TestNextQuestion_GoesFromQuestionZeroToOne(t *testing.T) {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
 
-	game.NextQuestion()
-	if game.CurrentQuestion != 1 {
-		t.Errorf("expected current question to be 1, got %d", game.CurrentQuestion)
+	game.NextItem()
+	if game.CurrentItem != 1 {
+		t.Errorf("expected current question to be 1, got %d", game.CurrentItem)
 	}
 }
 
@@ -398,16 +398,16 @@ func TestGetNextQuestion_GoesFromRoundOneToTwo(t *testing.T) {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
 
-	game.CurrentQuestion = len(rounds[0].Questions) - 1
+	game.CurrentItem = len(rounds[0].Questions) - 1
 
-	game.NextQuestion()
+	game.NextItem()
 
 	if game.CurrentRound != 2 {
 		t.Errorf("expected round to be 2, got %d", game.CurrentRound)
 	}
 
-	if game.CurrentQuestion != 0 {
-		t.Errorf("expected current question to be 0, got %d", game.CurrentQuestion)
+	if game.CurrentItem != 0 {
+		t.Errorf("expected current question to be 0, got %d", game.CurrentItem)
 	}
 }
 
@@ -431,8 +431,8 @@ func TestNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
 
 	lastRoundIndex := len(game.Rounds) - 1
 	game.CurrentRound = lastRoundIndex + 1
-	game.CurrentQuestion = len(rounds[lastRoundIndex].Questions) - 1
-	game.NextQuestion()
+	game.CurrentItem = len(rounds[lastRoundIndex].Challenges) - 1
+	game.NextItem()
 
 	if game.State != GameStateFinished {
 		t.Errorf("expected game state to be finished, got %s ", game.State)
@@ -723,7 +723,7 @@ func TestSubmitAnswer_WrongAnswerInBuzzRound(t *testing.T) {
 		t.Fatalf("could not buzz")
 	}
 	roundBefore := game.CurrentRound
-	questionBefore := game.CurrentQuestion
+	questionBefore := game.CurrentItem
 	answer, err := game.SubmitAnswer(playerID, "Wrong Answer")
 	if err != nil {
 		t.Fatalf("expected to submit answer, got err %v", err)
@@ -732,15 +732,15 @@ func TestSubmitAnswer_WrongAnswerInBuzzRound(t *testing.T) {
 	questionsInRound := len(game.Rounds[roundBefore-1].Questions)
 
 	if questionBefore < questionsInRound-1 {
-		if game.CurrentQuestion != questionBefore+1 {
-			t.Errorf("expected question index %d, got %d", questionBefore+1, game.CurrentQuestion)
+		if game.CurrentItem != questionBefore+1 {
+			t.Errorf("expected question index %d, got %d", questionBefore+1, game.CurrentItem)
 		}
 	} else if roundBefore < len(game.Rounds) {
 		if game.CurrentRound != roundBefore+1 {
 			t.Errorf("expected round %d, got %d", roundBefore+1, game.CurrentRound)
 		}
-		if game.CurrentQuestion != 0 {
-			t.Errorf("expected question index 0, got %d", game.CurrentQuestion)
+		if game.CurrentItem != 0 {
+			t.Errorf("expected question index 0, got %d", game.CurrentItem)
 		}
 	} else {
 		if game.State != GameStateFinished {
@@ -862,5 +862,60 @@ func TestSubmitAnswer_InvalidRoundType(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidRoundType) {
 		t.Errorf("expected error %v, got %v", ErrInvalidRoundType, err)
+	}
+}
+
+func TestSubmitAnswer_WrongAnswerInMultipleChoiceAdvancesToNextItem(t *testing.T) {
+	game := initializeGame(t)
+
+	currentRoundBefore := game.CurrentRound
+	currentItemBefore := game.CurrentItem
+
+	playerID := uint(1)
+	var playerTeamID *uint
+	for i := range game.Players {
+		if game.Players[i].PlayerID == playerID {
+			playerTeamID = game.Players[i].TeamID
+			break
+		}
+	}
+	if playerTeamID == nil {
+		t.Fatalf("player team ID was not found")
+	}
+
+	pointsBefore := 0
+	for j := range game.Teams {
+		if game.Teams[j].TeamID == *playerTeamID {
+			pointsBefore = game.Teams[j].Points
+		}
+	}
+
+	answer, err := game.SubmitAnswer(playerID, "wrong answer")
+	if err != nil {
+		t.Fatalf("could not submit answer")
+	}
+
+	pointsAfter := 0
+	for j := range game.Teams {
+		if game.Teams[j].TeamID == *playerTeamID {
+			pointsAfter = game.Teams[j].Points
+			break
+		}
+	}
+
+	if answer {
+		t.Errorf("expected answer to be %t", answer)
+	}
+
+	if game.CurrentItem != currentItemBefore+1 {
+		t.Errorf("expected current item to be %d, got %d", currentItemBefore+1, game.CurrentItem)
+	}
+
+	if game.CurrentRound != currentRoundBefore {
+		t.Errorf("expected current round to stay at %d, got %d", currentRoundBefore, game.CurrentRound)
+	}
+
+	if pointsBefore != pointsAfter {
+		t.Errorf("expected points to stay unchanged, got %d", pointsBefore)
 	}
 }

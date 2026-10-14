@@ -53,14 +53,14 @@ const (
 )
 
 type Game struct {
-	Players         []Player
-	Teams           []Team
-	Rounds          []Round
-	State           GameState
-	CurrentRound    int
-	CurrentQuestion int
-	nextPlayerID    uint
-	BuzzedPlayerID  *uint
+	Players        []Player
+	Teams          []Team
+	Rounds         []Round
+	State          GameState
+	CurrentRound   int
+	CurrentItem    int
+	nextPlayerID   uint
+	BuzzedPlayerID *uint
 }
 
 type Round struct {
@@ -175,7 +175,7 @@ func (g *Game) GetCurrentQuestion() (Question, error) {
 	if err != nil {
 		return Question{}, ErrNoCurrentQuestion
 	}
-	questionIndex := g.CurrentQuestion
+	questionIndex := g.CurrentItem
 	if questionIndex < 0 || questionIndex >= len(currentRound.Questions) {
 		return Question{}, ErrNoCurrentQuestion
 	}
@@ -191,22 +191,36 @@ func (g *Game) GetCurrentRound() (Round, error) {
 	return g.Rounds[roundIndex], nil
 }
 
-func (g *Game) NextQuestion() {
+func (g *Game) NextItem() {
 	currentRound, err := g.GetCurrentRound()
 	if err != nil {
 		return
 	}
-	g.BuzzedPlayerID = nil
-	if g.CurrentQuestion < len(currentRound.Questions)-1 {
-		g.CurrentQuestion++
-	} else {
-		if g.CurrentRound < len(g.Rounds) {
-			g.CurrentRound++
-			g.CurrentQuestion = 0
-		} else {
-			g.State = GameStateFinished
-		}
+
+	var totalItems int
+	switch currentRound.Type {
+	case RoundTypeMultipleChoice, RoundTypeFastestBuzz:
+		totalItems = len(currentRound.Questions)
+	case RoundTypeChallenge:
+		totalItems = len(currentRound.Challenges)
+	default:
+		return
 	}
+	if totalItems == 0 {
+		return
+	}
+	g.BuzzedPlayerID = nil
+	if g.CurrentItem < totalItems-1 {
+		g.CurrentItem++
+		return
+	}
+
+	if g.CurrentRound < len(g.Rounds) {
+		g.CurrentRound++
+		g.CurrentItem = 0
+		return
+	}
+	g.State = GameStateFinished
 }
 
 func (g *Game) Buzz(playerID uint) error {
@@ -270,7 +284,16 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 
 	switch currentRound.Type {
 	case RoundTypeMultipleChoice:
-		// logik for multiple choice
+		correct := question.CorrectAnswer == answer
+		if correct {
+			for j := range g.Teams {
+				if g.Teams[j].TeamID == *playerTeamID {
+					g.Teams[j].Points += 100
+				}
+			}
+		}
+		g.NextItem()
+		return correct, nil
 	case RoundTypeFastestBuzz:
 		if g.BuzzedPlayerID == nil {
 			return false, ErrNotBuzzedPlayer
@@ -288,7 +311,7 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 				}
 			}
 		}
-		g.NextQuestion()
+		g.NextItem()
 		return question.CorrectAnswer == answer, nil
 	case RoundTypeChallenge:
 		return false, ErrUnsupportedRoundType
@@ -296,17 +319,6 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 	default:
 		return false, ErrInvalidRoundType
 	}
-
-	if question.CorrectAnswer != answer {
-		return false, nil
-	}
-
-	for j := range g.Teams {
-		if g.Teams[j].TeamID == *playerTeamID {
-			g.Teams[j].Points += 100
-		}
-	}
-	return true, nil
 }
 
 func (g *Game) StartGame() error {
@@ -320,7 +332,7 @@ func (g *Game) StartGame() error {
 	g.assignPlayersToTeams()
 
 	g.CurrentRound = 1
-	g.CurrentQuestion = 0
+	g.CurrentItem = 0
 	g.State = GameStateInProgress
 
 	return nil
