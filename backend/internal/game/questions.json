@@ -42,6 +42,10 @@
       {
         "title": "Hvem er hurtigst til at bunde?",
         "description": "Hvert hold vælger en deltager, der skal bunde en øl."
+      },
+      {
+        "title": "Rangerer 10 største byer i Danmark",
+        "description": "Hvert hold skal rangere de 10 største byer i Danmark. Det hold med flest korrekte, vinder."
       }
     ]
   }

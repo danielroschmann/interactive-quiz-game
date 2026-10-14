@@ -919,3 +919,72 @@ func TestSubmitAnswer_WrongAnswerInMultipleChoiceAdvancesToNextItem(t *testing.T
 		t.Errorf("expected points to stay unchanged, got %d", pointsBefore)
 	}
 }
+
+func TestNextItem_AdvancesToNextChallenge(t *testing.T) {
+	game := initializeGame(t)
+
+	// challenge round
+	game.CurrentRound = 3
+	game.CurrentItem = 0
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type to be %s, got %s", RoundTypeChallenge, round.Type)
+	}
+
+	if len(round.Challenges) < 2 {
+		t.Fatalf("expected atleast 2 challenges got %d", len(round.Challenges))
+	}
+	game.NextItem()
+
+	if game.CurrentItem != 1 {
+		t.Errorf("expected current item to be 1 got %d", game.CurrentItem)
+	}
+
+	if game.CurrentRound != 3 {
+		t.Errorf("expected current round to stay at 3, got %d", game.CurrentRound)
+	}
+
+	if game.State != GameStateInProgress {
+		t.Errorf("expected game state to be %s, got %s", GameStateInProgress, game.State)
+	}
+}
+
+func TestNextItem_LastItemOfLastRoundFinishesGame(t *testing.T) {
+	game := initializeGame(t)
+
+	lastRoundIndex := len(game.Rounds) - 1
+	game.CurrentRound = lastRoundIndex + 1
+
+	lastItem := len(game.Rounds[lastRoundIndex].Challenges) - 1
+	game.CurrentItem = lastItem
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type to be %s, got %s", RoundTypeChallenge, round.Type)
+	}
+	if len(round.Challenges) < 1 {
+		t.Fatalf("expected atleast 1 challenge got %d", len(round.Challenges))
+	}
+
+	game.NextItem()
+
+	if game.State != GameStateFinished {
+		t.Errorf("expected game state to be %s, got %s", GameStateFinished, game.State)
+	}
+
+	if game.CurrentRound != lastRoundIndex+1 {
+		t.Errorf("expected current round to be last round %d, got %d", lastRoundIndex+1, game.CurrentRound)
+	}
+
+	if game.CurrentItem != lastItem {
+		t.Errorf("expected current item to be last item %d, got %d", lastItem, game.CurrentItem)
+	}
+}
