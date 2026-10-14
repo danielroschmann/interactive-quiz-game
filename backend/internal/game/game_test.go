@@ -988,3 +988,73 @@ func TestNextItem_LastItemOfLastRoundFinishesGame(t *testing.T) {
 		t.Errorf("expected current item to be last item %d, got %d", lastItem, game.CurrentItem)
 	}
 }
+
+func TestGetCurrentChallenge_ReturnsChallengeSuccesfully(t *testing.T) {
+	game := initializeGame(t)
+
+	game.CurrentRound = 3
+
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type %s, got %s", RoundTypeChallenge, round.Type)
+	}
+
+	if len(round.Challenges) == 0 {
+		t.Fatal("expected atleast one challenge")
+	}
+
+	expectedChallenge := game.Rounds[game.CurrentRound-1].Challenges[0]
+	currentChallenge, err := game.GetCurrentChallenge()
+	if err != nil {
+		t.Fatalf("expected to get current challenge, got err %v", err)
+	}
+
+	if currentChallenge.Title != expectedChallenge.Title {
+		t.Errorf("expected challenge %s, got %s", expectedChallenge.Title, currentChallenge.Title)
+	}
+}
+
+func TestGetCurrentChallenge_WrongRoundType(t *testing.T) {
+	game := initializeGame(t)
+
+	game.CurrentRound = 2
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeFastestBuzz {
+		t.Fatalf("expected round type %s, got %s", RoundTypeFastestBuzz, round.Type)
+	}
+
+	_, err = game.GetCurrentChallenge()
+
+	if !errors.Is(err, ErrWrongRoundType) {
+		t.Errorf("expected error  %v, got %v", ErrWrongRoundType, err)
+	}
+}
+
+func TestGetCurrentChallenge_NoCurrentChallenge(t *testing.T) {
+	game := initializeGame(t)
+
+	game.CurrentRound = 3
+	round, err := game.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if round.Type != RoundTypeChallenge {
+		t.Fatalf("expected round type %s, got %s", RoundTypeChallenge, round.Type)
+	}
+	game.CurrentItem = len(round.Challenges)
+
+	_, err = game.GetCurrentChallenge()
+
+	if !errors.Is(err, ErrNoCurrentChallenge) {
+		t.Errorf("expected error %v, got %v", ErrNoCurrentChallenge, err)
+	}
+}

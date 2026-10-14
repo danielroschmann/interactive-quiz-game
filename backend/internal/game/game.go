@@ -21,6 +21,7 @@ var (
 	ErrWrongRoundType       = errors.New("wrong round type")
 	ErrUnsupportedRoundType = errors.New("round type not supported")
 	ErrInvalidRoundType     = errors.New("invalid round type")
+	ErrNoCurrentChallenge   = errors.New("no current challenge")
 )
 
 type JoinGamePayload struct {
@@ -181,6 +182,23 @@ func (g *Game) GetCurrentQuestion() (Question, error) {
 	}
 
 	return currentRound.Questions[questionIndex], nil
+}
+
+func (g *Game) GetCurrentChallenge() (Challenge, error) {
+	currentRound, err := g.GetCurrentRound()
+	if err != nil {
+		return Challenge{}, ErrNoCurrentChallenge
+	}
+
+	if currentRound.Type != RoundTypeChallenge {
+		return Challenge{}, ErrWrongRoundType
+	}
+
+	challengeIndex := g.CurrentItem
+	if challengeIndex < 0 || challengeIndex >= len(currentRound.Challenges) {
+		return Challenge{}, ErrNoCurrentChallenge
+	}
+	return currentRound.Challenges[challengeIndex], nil
 }
 
 func (g *Game) GetCurrentRound() (Round, error) {
