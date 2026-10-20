@@ -351,3 +351,83 @@ func TestHub_RunBroadcastMessageToClient(t *testing.T) {
 		t.Fatal("expeced question in gamestate payload")
 	}
 }
+
+func TestHandleBuzz_RegisterBuzz(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	g := initializeGame(t)
+
+	g.CurrentRound = 2
+
+	round, err := g.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("expected to get current round got err %v", err)
+	}
+
+	if round.Type != game.RoundTypeFastestBuzz {
+		t.Fatalf("expected round type %s, got %s", game.RoundTypeFastestBuzz, round.Type)
+	}
+
+	hub := NewHub()
+
+	go func() {
+		hub.Run()
+	}()
+
+	client := Client{
+		hub:      hub,
+		game:     g,
+		playerID: 1,
+		send:     make(chan []byte, 1),
+	}
+
+	hub.register <- &client
+
+	client.handleBuzz()
+
+	if g.BuzzedPlayerID == nil {
+		t.Fatal("expected buzzed player id to be set")
+	}
+	if *g.BuzzedPlayerID != client.playerID {
+		t.Errorf("expected to get player id %d got %d", client.playerID, *g.BuzzedPlayerID)
+	}
+
+	var msgData []byte
+
+	select {
+	case msgData = <-client.send:
+
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for broadcast message")
+
+	}
+
+	var msg Message
+	if err := json.Unmarshal(msgData, &msg); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if msg.Type != GameStateUpdate {
+		t.Fatalf("expected message type to be %s, got %s", GameStateUpdate, msg.Type)
+	}
+
+	var payload GameStatePayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+	round, err = g.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	if payload.RoundType != string(round.Type) {
+		t.Errorf("expected round type to be %s, got %s", round.Type, payload.RoundType)
+	}
+
+	if payload.BuzzedPlayerID == nil {
+		t.Fatal("expected buzzedplayer id to be in payload")
+	}
+	if *payload.BuzzedPlayerID != client.playerID {
+		t.Errorf("expected to get player id %d got %d", client.playerID, *payload.BuzzedPlayerID)
+	}
+}

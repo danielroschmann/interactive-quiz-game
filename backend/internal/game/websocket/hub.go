@@ -1,6 +1,9 @@
 package websocket
 
+import "sync"
+
 type Hub struct {
+	mu         sync.Mutex
 	clients    map[*Client]bool
 	broadcast  chan []byte
 	register   chan *Client

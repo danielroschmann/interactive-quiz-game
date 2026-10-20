@@ -73,6 +73,10 @@ func (c *Client) readPump() {
 			c.joinGame(msg)
 		case LeaveGame:
 			c.leaveGame()
+		case Buzz:
+			c.handleBuzz()
+		case Answer:
+			//c.handleAnswer(msg)
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
@@ -88,7 +92,9 @@ func (c *Client) joinGame(msg Message) {
 		return
 	}
 	fmt.Printf("player wants to join: %s\n", payload.PlayerName)
+	c.hub.mu.Lock()
 	player := c.game.JoinGame(payload.PlayerName)
+	c.hub.mu.Unlock()
 	c.playerID = player.PlayerID
 	playerJoinedPayload := game.PlayerJoinedPayload{
 		PlayerID:   player.PlayerID,
@@ -114,11 +120,31 @@ func (c *Client) joinGame(msg Message) {
 	fmt.Printf("players: %+v", c.game.Players)
 }
 
+func (c *Client) handleBuzz() {
+	if c.playerID == 0 {
+		return
+	}
+
+	c.hub.mu.Lock()
+	err := c.game.Buzz(c.playerID)
+	c.hub.mu.Unlock()
+	if err != nil {
+		log.Printf("player %d failed to buzz: %v", c.playerID, err)
+	}
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("failed to broadcast game state %v", err)
+		return
+	}
+}
+
 func (c *Client) leaveGame() {
 	if c.playerID == 0 {
 		return
 	}
+	c.hub.mu.Lock()
 	player, ok := c.game.LeaveGame(c.playerID)
+	c.hub.mu.Unlock()
 	if !ok {
 		return
 	}

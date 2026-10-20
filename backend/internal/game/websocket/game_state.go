@@ -47,6 +47,10 @@ func BuildGameStatePayload(g *game.Game) (GameStatePayload, error) {
 		if err != nil {
 			return GameStatePayload{}, game.ErrNoCurrentQuestion
 		}
+		if g.BuzzedPlayerID != nil {
+			playerID := *g.BuzzedPlayerID
+			payload.BuzzedPlayerID = &playerID
+		}
 		payload.Question = &QuestionView{
 			Question:      question.Question,
 			AnswerOptions: append([]string(nil), question.AnswerOptions...),
@@ -91,7 +95,9 @@ func BuildGameStateUpdateMessage(g *game.Game) ([]byte, error) {
 }
 
 func (h *Hub) BroadcastGameState(g *game.Game) error {
+	h.mu.Lock()
 	msg, err := BuildGameStateUpdateMessage(g)
+	h.mu.Unlock()
 	if err != nil {
 		return err
 	}

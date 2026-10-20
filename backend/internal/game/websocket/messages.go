@@ -36,15 +36,20 @@ type ChallengeView struct {
 	Description string `json:"description"`
 }
 
+type AnswerPayload struct {
+	Answer string `json:"answer"`
+}
+
 type GameStatePayload struct {
-	State        string         `json:"state"`
-	Players      []PlayerView   `json:"players"`
-	Teams        []TeamView     `json:"teams"`
-	CurrentRound int            `json:"current_round"`
-	CurrentItem  int            `json:"current_item"`
-	RoundType    string         `json:"round_type"`
-	Question     *QuestionView  `json:"question,omitempty"`
-	Challenge    *ChallengeView `json:"challenge,omitempty"`
+	State          string         `json:"state"`
+	Players        []PlayerView   `json:"players"`
+	Teams          []TeamView     `json:"teams"`
+	CurrentRound   int            `json:"current_round"`
+	CurrentItem    int            `json:"current_item"`
+	RoundType      string         `json:"round_type"`
+	Question       *QuestionView  `json:"question,omitempty"`
+	Challenge      *ChallengeView `json:"challenge,omitempty"`
+	BuzzedPlayerID *uint          `json:"buzzed_player_id,omitempty"`
 }
 
 type Message struct {
