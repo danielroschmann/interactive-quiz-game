@@ -2,9 +2,11 @@ package websocket
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
 )
@@ -244,5 +246,108 @@ func TestBuildGameStateUpdateMessage(t *testing.T) {
 
 	if gameStatePayload.Question.Question != question.Question {
 		t.Errorf("expected question to be %s", question.Question)
+	}
+}
+
+func TestHub_BroadcastGameState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	g := initializeGame(t)
+
+	hub := NewHub()
+	ch := make(chan error, 1)
+
+	go func() {
+		ch <- hub.BroadcastGameState(g)
+	}()
+
+	var msgData []byte
+
+	select {
+	case msgData = <-hub.broadcast:
+		if err := <-ch; err != nil {
+			t.Fatalf("could not broadcast game state %v", err)
+		}
+	case err := <-ch:
+		if err != nil {
+			t.Fatalf("could not broadcast game state %v", err)
+		}
+		t.Fatal("broadcast returned without sending message ")
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for broadcast message")
+	}
+
+	var msg Message
+	err := json.Unmarshal(msgData, &msg)
+	if err != nil {
+		t.Fatalf("could not unmarshal data %v", err)
+	}
+
+	if msg.Type != GameStateUpdate {
+		t.Errorf("expected message type %s, got %s", GameStateUpdate, msg.Type)
+	}
+
+	var payload GameStatePayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Errorf("could not unarshal game state payload %v", err)
+	}
+
+	if payload.State != string(g.State) {
+		t.Errorf("expected game state %s, got %s", g.State, payload.State)
+	}
+
+	if payload.Question == nil {
+		t.Fatal("expected question in payload")
+	}
+}
+
+func TestHub_RunBroadcastMessageToClient(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	g := initializeGame(t)
+
+	hub := NewHub()
+
+	go func() {
+		hub.Run()
+	}()
+
+	client := Client{
+		hub:  hub,
+		game: g,
+		send: make(chan []byte, 1),
+	}
+
+	hub.register <- &client
+
+	if err := hub.BroadcastGameState(g); err != nil {
+		t.Fatalf("could not broadcast game state %v", err)
+	}
+
+	var msgData []byte
+
+	select {
+	case msgData = <-client.send:
+		//
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for broadcast message")
+	}
+
+	var msg Message
+	if err := json.Unmarshal(msgData, &msg); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if msg.Type != GameStateUpdate {
+		t.Errorf("expected message type %s got %s", GameStateUpdate, msg.Type)
+	}
+
+	var payload GameStatePayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if payload.Question == nil {
+		t.Fatal("expeced question in gamestate payload")
 	}
 }

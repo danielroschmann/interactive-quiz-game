@@ -89,3 +89,13 @@ func BuildGameStateUpdateMessage(g *game.Game) ([]byte, error) {
 
 	return msgData, nil
 }
+
+func (h *Hub) BroadcastGameState(g *game.Game) error {
+	msg, err := BuildGameStateUpdateMessage(g)
+	if err != nil {
+		return err
+	}
+
+	h.broadcast <- msg
+	return nil
+}
