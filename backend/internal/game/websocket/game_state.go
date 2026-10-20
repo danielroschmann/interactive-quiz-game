@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"encoding/json"
+
 	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
 )
 
@@ -62,4 +64,28 @@ func BuildGameStatePayload(g *game.Game) (GameStatePayload, error) {
 		return GameStatePayload{}, game.ErrWrongRoundType
 	}
 	return payload, nil
+}
+
+func BuildGameStateUpdateMessage(g *game.Game) ([]byte, error) {
+	payload, err := BuildGameStatePayload(g)
+	if err != nil {
+		return nil, err
+	}
+
+	payloadData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := Message{
+		Type:    GameStateUpdate,
+		Payload: payloadData,
+	}
+
+	msgData, err := json.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return msgData, nil
 }

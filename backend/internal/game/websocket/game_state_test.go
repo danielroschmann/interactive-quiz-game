@@ -194,3 +194,55 @@ func TestBuildGameStatePayload_ChallengeRound(t *testing.T) {
 		t.Errorf("expected challenge description to be the same as actual challenge description")
 	}
 }
+
+func TestBuildGameStateUpdateMessage(t *testing.T) {
+	g := initializeGame(t)
+
+	msgData, err := BuildGameStateUpdateMessage(g)
+	if err != nil {
+		t.Fatalf("could not update message %v", err)
+	}
+
+	var message Message
+
+	err = json.Unmarshal(msgData, &message)
+	if err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if message.Type != GameStateUpdate {
+		t.Errorf("expected message type to be %s", GameStateUpdate)
+	}
+
+	var gameStatePayload GameStatePayload
+	err = json.Unmarshal(message.Payload, &gameStatePayload)
+	if err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	round, err := g.GetCurrentRound()
+	if err != nil {
+		t.Fatalf("could not get current round %v", err)
+	}
+
+	question, err := g.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question %v", err)
+	}
+
+	if gameStatePayload.State != string(g.State) {
+		t.Errorf("expected game state to be %s, got %s", string(g.State), gameStatePayload.State)
+	}
+
+	if gameStatePayload.RoundType != string(round.Type) {
+		t.Errorf("expected round type to be %s, got %s", string(round.Type), gameStatePayload.RoundType)
+	}
+
+	if gameStatePayload.Question == nil {
+		t.Fatalf("expected question to be in game state payload")
+	}
+
+	if gameStatePayload.Question.Question != question.Question {
+		t.Errorf("expected question to be %s", question.Question)
+	}
+}
