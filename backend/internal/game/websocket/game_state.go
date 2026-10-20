@@ -37,6 +37,8 @@ func BuildGameStatePayload(g *game.Game) (GameStatePayload, error) {
 		return GameStatePayload{}, game.ErrNoCurrentRound
 	}
 
+	payload.RoundType = string(round.Type)
+
 	switch round.Type {
 	case game.RoundTypeMultipleChoice, game.RoundTypeFastestBuzz:
 		question, err := g.GetCurrentQuestion()

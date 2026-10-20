@@ -11,7 +11,11 @@ import (
 
 func main() {
 	hub := websocket.NewHub()
-	game := game.NewGame()
+	rounds, err := game.LoadRounds("questions.json")
+	if err != nil {
+		return
+	}
+	game := game.NewGame(rounds)
 	go hub.Run()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Server")
