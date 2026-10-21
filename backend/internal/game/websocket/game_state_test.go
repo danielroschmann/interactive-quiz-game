@@ -662,3 +662,119 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 		t.Fatal("expected question in game state payload")
 	}
 }
+
+func TestJoinGame_FirstPlayerBecomesHost(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+	hub := NewHub()
+
+	go func() {
+		hub.Run()
+	}()
+
+	client := Client{
+		hub:  hub,
+		game: g,
+		send: make(chan []byte, 1),
+	}
+
+	joinPayload := game.JoinGamePayload{
+		PlayerName: "John",
+	}
+
+	payload, err := json.Marshal(joinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	msgJoinGame := Message{
+		Type:    JoinGame,
+		Payload: payload,
+	}
+	client.joinGame(msgJoinGame)
+
+	if client.playerID == 0 {
+		t.Fatal("expected client to recieve a player id")
+	}
+	if g.HostPlayerID != client.playerID {
+		t.Errorf("expected host player id to be %d, got %d", client.playerID, g.HostPlayerID)
+	}
+}
+
+func TestJoinGame_SecondPlayerDoesntReplaceHost(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+	hub := NewHub()
+
+	go func() {
+		hub.Run()
+	}()
+
+	client := Client{
+		hub:  hub,
+		game: g,
+		send: make(chan []byte, 1),
+	}
+
+	joinPayload := game.JoinGamePayload{
+		PlayerName: "John",
+	}
+
+	payload, err := json.Marshal(joinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	msgJoinGame := Message{
+		Type:    JoinGame,
+		Payload: payload,
+	}
+	client.joinGame(msgJoinGame)
+
+	hostID := g.HostPlayerID
+
+	if hostID == 0 {
+		t.Fatal("expected host to have host id")
+	}
+
+	newClient := Client{
+		hub:  hub,
+		game: g,
+		send: make(chan []byte, 1),
+	}
+
+	newJoinPayload := game.JoinGamePayload{
+		PlayerName: "Doe",
+	}
+
+	newClientPayload, err := json.Marshal(newJoinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	msgJoinGame = Message{
+		Type:    JoinGame,
+		Payload: newClientPayload,
+	}
+
+	newClient.joinGame(msgJoinGame)
+
+	if newClient.playerID == 0 {
+		t.Fatal("expected new client to have player id ")
+	}
+	if newClient.playerID == client.playerID {
+		t.Errorf("expected different player ids, but both were %d", client.playerID)
+	}
+	if g.HostPlayerID != hostID {
+		t.Errorf("expected host player id to be %d, got %d", hostID, g.HostPlayerID)
+	}
+
+	if len(g.Players) != 2 {
+		t.Errorf("expected game to have 2 players, got %d", len(g.Players))
+	}
+}

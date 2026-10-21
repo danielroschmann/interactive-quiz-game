@@ -63,6 +63,7 @@ type Game struct {
 	CurrentItem    int
 	nextPlayerID   uint
 	BuzzedPlayerID *uint
+	HostPlayerID   uint
 }
 
 type Round struct {
@@ -358,7 +359,7 @@ func (g *Game) CompleteChallenge(teamPoints map[uint]int) error {
 
 	_, err = g.GetCurrentChallenge()
 	if err != nil {
-		return err
+		return ErrNoCurrentChallenge
 	}
 
 	for teamID := range teamPoints {

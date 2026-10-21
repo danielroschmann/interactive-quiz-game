@@ -13,6 +13,7 @@ func BuildGameStatePayload(g *game.Game) (GameStatePayload, error) {
 		CurrentItem:  g.CurrentItem,
 		Players:      make([]PlayerView, 0, len(g.Players)),
 		Teams:        make([]TeamView, 0, len(g.Teams)),
+		HostPlayerID: g.HostPlayerID,
 	}
 
 	for i := range g.Players {

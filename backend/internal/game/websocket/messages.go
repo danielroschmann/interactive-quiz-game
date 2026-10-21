@@ -12,6 +12,7 @@ const (
 	PlayerJoined    MessageType = "player_joined"
 	PlayerLeft      MessageType = "player_left"
 	GameStateUpdate MessageType = "game_state_update"
+	StartGame       MessageType = "start_game"
 )
 
 type PlayerView struct {
@@ -50,6 +51,7 @@ type GameStatePayload struct {
 	Question       *QuestionView  `json:"question,omitempty"`
 	Challenge      *ChallengeView `json:"challenge,omitempty"`
 	BuzzedPlayerID *uint          `json:"buzzed_player_id,omitempty"`
+	HostPlayerID   uint           `json:"host_player_id"`
 }
 
 type Message struct {

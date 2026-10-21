@@ -77,10 +77,37 @@ func (c *Client) readPump() {
 			c.handleBuzz()
 		case Answer:
 			c.handleAnswer(msg)
+		case StartGame:
+			c.handleStartGame()
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
 
+	}
+}
+
+func (c *Client) handleStartGame() {
+	if c.playerID == 0 {
+		log.Print("client has not joined the game")
+		return
+	}
+
+	c.hub.mu.Lock()
+	if c.playerID != c.game.HostPlayerID {
+		log.Printf("client player id %d is not the host", c.playerID)
+		c.hub.mu.Unlock()
+		return
+	}
+
+	err := c.game.StartGame()
+	c.hub.mu.Unlock()
+	if err != nil {
+		log.Printf("could not start game %v", err)
+		return
+	}
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("could not broadcast game state %v", err)
 	}
 }
 
@@ -94,6 +121,9 @@ func (c *Client) joinGame(msg Message) {
 	fmt.Printf("player wants to join: %s\n", payload.PlayerName)
 	c.hub.mu.Lock()
 	player := c.game.JoinGame(payload.PlayerName)
+	if c.game.HostPlayerID == 0 {
+		c.game.HostPlayerID = player.PlayerID
+	}
 	c.hub.mu.Unlock()
 	c.playerID = player.PlayerID
 	playerJoinedPayload := game.PlayerJoinedPayload{
@@ -117,7 +147,9 @@ func (c *Client) joinGame(msg Message) {
 	}
 
 	c.hub.broadcast <- messageData
-	fmt.Printf("players: %+v", c.game.Players)
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("failed to broadcast game state %v", err)
+	}
 }
 
 func (c *Client) handleAnswer(msg Message) {
