@@ -11,9 +11,9 @@ import (
 
 func main() {
 	hub := websocket.NewHub()
-	rounds, err := game.LoadRounds("questions.json")
+	rounds, err := game.LoadRounds("../../internal/game/questions.json")
 	if err != nil {
-		return
+		log.Fatalf("failed to load rounds %v", err)
 	}
 	game := game.NewGame(rounds)
 	go hub.Run()
