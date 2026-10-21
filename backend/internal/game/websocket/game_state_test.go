@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
+	gorilla "github.com/gorilla/websocket"
 )
 
 func initializeGame(t *testing.T) *game.Game {
@@ -32,6 +36,34 @@ func initializeGame(t *testing.T) *game.Game {
 	}
 
 	return g
+}
+
+func readGameInProgress(t *testing.T, conn *gorilla.Conn) GameStatePayload {
+	t.Helper()
+
+	for {
+		if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Fatalf("could not set read deadline: %v", err)
+		}
+
+		var msg Message
+		if err := conn.ReadJSON(&msg); err != nil {
+			t.Fatalf("could not read message %v", err)
+		}
+
+		if msg.Type != GameStateUpdate {
+			continue
+		}
+
+		var payload GameStatePayload
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			t.Fatalf("could not unmarshal game state payload: %v", err)
+		}
+
+		if payload.State == string(game.GameStateInProgress) {
+			return payload
+		}
+	}
 }
 
 func TestBuildGameStatePayload_MultipleChoiceRound(t *testing.T) {
@@ -879,5 +911,315 @@ func TestHandleStartGame_NonHostCantStartGame(t *testing.T) {
 
 	if doe.PlayerID == john.PlayerID {
 		t.Errorf("expected different player ids for player %d and player %d", doe.PlayerID, john.PlayerID)
+	}
+}
+
+func TestJoinGame_BroadcastUpdatedLobbyState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+
+	hub := NewHub()
+
+	go hub.Run()
+
+	john := Client{
+		hub:  hub,
+		game: g,
+		send: make(chan []byte, 2),
+	}
+
+	hub.register <- &john
+
+	joinPayload := game.JoinGamePayload{
+		PlayerName: "John",
+	}
+
+	payloadData, err := json.Marshal(joinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	msgJoinGame := Message{
+		Type:    JoinGame,
+		Payload: payloadData,
+	}
+	john.joinGame(msgJoinGame)
+
+	if john.playerID == 0 {
+		t.Fatal("expected client to recieve a player id")
+	}
+	receivedPlayerJoined := false
+	receivedGameState := false
+	var gameStatePayload GameStatePayload
+
+	for !receivedGameState {
+		select {
+		case msgData := <-john.send:
+			var msg Message
+			if err := json.Unmarshal(msgData, &msg); err != nil {
+				t.Fatalf("could not unmarshal message: %v", err)
+			}
+
+			switch msg.Type {
+			case PlayerJoined:
+				receivedPlayerJoined = true
+
+			case GameStateUpdate:
+				if err := json.Unmarshal(msg.Payload, &gameStatePayload); err != nil {
+					t.Fatalf("could not unmarshal game state payload: %v", err)
+				}
+				receivedGameState = true
+
+			default:
+				t.Fatalf("unexpected message type: %s", msg.Type)
+			}
+
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for lobby messages")
+		}
+	}
+
+	if !receivedPlayerJoined {
+		t.Error("expected to receive PlayerJoined")
+	}
+
+	if gameStatePayload.State != string(game.GameStateLobby) {
+		t.Errorf("expected game state %s, got %s",
+			game.GameStateLobby, gameStatePayload.State)
+	}
+
+	foundJohn := false
+	for i := range gameStatePayload.Players {
+		if gameStatePayload.Players[i].PlayerID == john.playerID {
+			foundJohn = true
+			break
+		}
+	}
+
+	if !foundJohn {
+		t.Error("expected John to be present in the player list")
+	}
+
+	if gameStatePayload.HostPlayerID != john.playerID {
+		t.Errorf("expected John to be host with ID %d, got %d",
+			john.playerID, gameStatePayload.HostPlayerID)
+	}
+
+	if gameStatePayload.Question != nil {
+		t.Error("expected question to be nil in lobby")
+	}
+
+	if gameStatePayload.Challenge != nil {
+		t.Error("expected challenge to be nil in lobby")
+	}
+}
+
+func TestWebSocket_JoinGame(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+
+	hub := NewHub()
+
+	go hub.Run()
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		ServeWs(hub, g, w, r)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", nil)
+	if err != nil {
+		t.Fatalf("could not connect to websocket %v", err)
+	}
+	defer conn.Close()
+
+	joinPayload := game.JoinGamePayload{
+		PlayerName: "John",
+	}
+
+	payloadData, err := json.Marshal(joinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	msgJoinGame := Message{
+		Type:    JoinGame,
+		Payload: payloadData,
+	}
+
+	if err := conn.WriteJSON(msgJoinGame); err != nil {
+		t.Fatalf("could not write json %v", err)
+	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("could not set read deadline: %v", err)
+	}
+
+	var playerJoinedMessage Message
+
+	if err := conn.ReadJSON(&playerJoinedMessage); err != nil {
+		t.Fatalf("could not read PlayerJoined message: %v", err)
+	}
+
+	if playerJoinedMessage.Type != PlayerJoined {
+		t.Fatalf("expected message type %s, got %s", PlayerJoined, playerJoinedMessage.Type)
+	}
+
+	var gameStateMessage Message
+
+	if err := conn.ReadJSON(&gameStateMessage); err != nil {
+		t.Fatalf("could not read GameStateUpdate message: %v", err)
+	}
+
+	if gameStateMessage.Type != GameStateUpdate {
+		t.Fatalf("expected message type %s, got %s", GameStateUpdate, gameStateMessage.Type)
+	}
+
+	var gameStatePayload GameStatePayload
+
+	if err := json.Unmarshal(gameStateMessage.Payload, &gameStatePayload); err != nil {
+		t.Fatalf("could not unmarshal game state payload: %v", err)
+	}
+
+	if gameStatePayload.State != string(game.GameStateLobby) {
+		t.Errorf("expected state %s, got %s", game.GameStateLobby, gameStatePayload.State)
+	}
+
+	if gameStatePayload.HostPlayerID == 0 {
+		t.Error("expected a host to be assigned")
+	}
+
+	if gameStatePayload.Question != nil {
+		t.Error("expected question to be nil in lobby")
+	}
+
+	if gameStatePayload.Challenge != nil {
+		t.Error("expected challenge to be nil in lobby")
+	}
+}
+
+func TestWebSocket_HostStartsGame(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+
+	hub := NewHub()
+
+	go hub.Run()
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		ServeWs(hub, g, w, r)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	connJohn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", nil)
+	if err != nil {
+		t.Fatalf("could not connect to websocket %v", err)
+	}
+	defer connJohn.Close()
+	connDoe, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", nil)
+	if err != nil {
+		t.Fatalf("could not connect to websocket %v", err)
+	}
+	defer connDoe.Close()
+
+	johnJoinPayload := game.JoinGamePayload{
+		PlayerName: "John",
+	}
+	doeJoinPayload := game.JoinGamePayload{
+		PlayerName: "Doe",
+	}
+
+	johnPayloadData, err := json.Marshal(johnJoinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	johnMsgJoinGame := Message{
+		Type:    JoinGame,
+		Payload: johnPayloadData,
+	}
+
+	doePayloadData, err := json.Marshal(doeJoinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	doeMsgJoinGame := Message{
+		Type:    JoinGame,
+		Payload: doePayloadData,
+	}
+
+	if err := connJohn.WriteJSON(johnMsgJoinGame); err != nil {
+		t.Fatalf("could not write json %v", err)
+	}
+
+	if err := connDoe.WriteJSON(doeMsgJoinGame); err != nil {
+		t.Fatalf("could not write json %v", err)
+	}
+	if err := connJohn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("could not set read deadline: %v", err)
+	}
+
+	if err := connDoe.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("could not set read deadline: %v", err)
+	}
+	var playerJoinedMessage Message
+
+	if err := connJohn.ReadJSON(&playerJoinedMessage); err != nil {
+		t.Fatalf("could not read PlayerJoined message: %v", err)
+	}
+
+	if err := connDoe.ReadJSON(&playerJoinedMessage); err != nil {
+		t.Fatalf("could not read PlayerJoined message: %v", err)
+	}
+	if playerJoinedMessage.Type != PlayerJoined {
+		t.Fatalf("expected message type %s, got %s", PlayerJoined, playerJoinedMessage.Type)
+	}
+
+	startMessage := Message{
+		Type: StartGame,
+	}
+
+	if err := connJohn.WriteJSON(startMessage); err != nil {
+		t.Fatalf("could not send start game message %v", err)
+	}
+
+	johnPayload := readGameInProgress(t, connJohn)
+	doePayload := readGameInProgress(t, connDoe)
+
+	if johnPayload.State != string(game.GameStateInProgress) {
+		t.Errorf("expected John to receive in_progress, got %s", johnPayload.State)
+	}
+
+	if doePayload.State != string(game.GameStateInProgress) {
+		t.Errorf("expected Doe to receive in_progress, got %s", doePayload.State)
+	}
+
+	if johnPayload.Question == nil {
+		t.Error("expected John to receive the first question")
+	}
+
+	if doePayload.Question == nil {
+		t.Error("expected Doe to receive the first question")
 	}
 }
