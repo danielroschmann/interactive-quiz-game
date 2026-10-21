@@ -89,6 +89,7 @@ func NewGame(rounds []Round) *Game {
 		Players:      make([]Player, 0),
 		Rounds:       rounds,
 		nextPlayerID: 1,
+		State:        GameStateLobby,
 	}
 }
 

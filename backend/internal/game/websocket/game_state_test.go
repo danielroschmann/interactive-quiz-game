@@ -778,3 +778,106 @@ func TestJoinGame_SecondPlayerDoesntReplaceHost(t *testing.T) {
 		t.Errorf("expected game to have 2 players, got %d", len(g.Players))
 	}
 }
+
+func TestHandleStartGame_HostStartsGame(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	hub := NewHub()
+
+	go hub.Run()
+	g := game.NewGame(rounds)
+	host := g.JoinGame("John")
+	g.JoinGame("Doe")
+
+	// John er host
+	g.HostPlayerID = host.PlayerID
+
+	client := Client{
+		hub:      hub,
+		game:     g,
+		playerID: host.PlayerID,
+		send:     make(chan []byte, 1),
+	}
+
+	hub.register <- &client
+	client.handleStartGame()
+
+	if g.State != game.GameStateInProgress {
+		t.Fatalf("expected game state to be %s, got %s", game.GameStateInProgress, g.State)
+	}
+
+	var msgData []byte
+
+	select {
+	case msgData = <-client.send:
+
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for broadcast message")
+	}
+
+	var msg Message
+	if err := json.Unmarshal(msgData, &msg); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if msg.Type != GameStateUpdate {
+		t.Errorf("expected message type %s got %s", GameStateUpdate, msg.Type)
+	}
+
+	var payload GameStatePayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	question, err := g.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question %v", err)
+	}
+
+	if payload.Question.Question != question.Question {
+		t.Errorf("expected payload to contain the first question %s", question.Question)
+	}
+}
+
+func TestHandleStartGame_NonHostCantStartGame(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	hub := NewHub()
+
+	go hub.Run()
+	g := game.NewGame(rounds)
+	john := g.JoinGame("John")
+	doe := g.JoinGame("Doe")
+
+	// John er host
+	g.HostPlayerID = john.PlayerID
+
+	doeClient := Client{
+		hub:      hub,
+		game:     g,
+		playerID: doe.PlayerID,
+		send:     make(chan []byte, 1),
+	}
+	hub.register <- &doeClient
+	doeClient.handleStartGame()
+
+	if g.State != game.GameStateLobby {
+		t.Fatalf("expected game state to be %s, got %s", game.GameStateLobby, g.State)
+	}
+
+	if g.HostPlayerID != john.PlayerID {
+		t.Errorf("expected player %d to be host player got %d", john.PlayerID, g.HostPlayerID)
+	}
+
+	if doe.PlayerID == john.PlayerID {
+		t.Errorf("expected different player ids for player %d and player %d", doe.PlayerID, john.PlayerID)
+	}
+}
