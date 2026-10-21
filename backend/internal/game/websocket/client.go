@@ -76,7 +76,7 @@ func (c *Client) readPump() {
 		case Buzz:
 			c.handleBuzz()
 		case Answer:
-			//c.handleAnswer(msg)
+			c.handleAnswer(msg)
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
@@ -118,6 +118,31 @@ func (c *Client) joinGame(msg Message) {
 
 	c.hub.broadcast <- messageData
 	fmt.Printf("players: %+v", c.game.Players)
+}
+
+func (c *Client) handleAnswer(msg Message) {
+	if c.playerID == 0 {
+		return
+	}
+
+	var answerPayload AnswerPayload
+	if err := json.Unmarshal(msg.Payload, &answerPayload); err != nil {
+		log.Printf("failed to unmarshal payload %v", err)
+		return
+	}
+
+	c.hub.mu.Lock()
+	correct, err := c.game.SubmitAnswer(c.playerID, answerPayload.Answer)
+	c.hub.mu.Unlock()
+	if err != nil {
+		log.Printf("failed to submit answer %v", err)
+		return
+	}
+
+	log.Printf("answer was %t", correct)
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("failed to broadcast game state %v", err)
+	}
 }
 
 func (c *Client) handleBuzz() {

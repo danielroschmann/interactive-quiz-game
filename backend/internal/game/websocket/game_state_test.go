@@ -431,3 +431,234 @@ func TestHandleBuzz_RegisterBuzz(t *testing.T) {
 		t.Errorf("expected to get player id %d got %d", client.playerID, *payload.BuzzedPlayerID)
 	}
 }
+
+func TestHandleAnswer_CorrectAnswer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	g := initializeGame(t)
+
+	g.CurrentRound = 1
+	g.CurrentItem = 0
+
+	playerID := uint(1)
+	var playerTeamID *uint
+	for i := range g.Players {
+		if g.Players[i].PlayerID == playerID {
+			playerTeamID = g.Players[i].TeamID
+			break
+		}
+	}
+	if playerTeamID == nil {
+		t.Fatalf("player team id was not found")
+	}
+
+	pointsBefore := 0
+	for i := range g.Teams {
+		if g.Teams[i].TeamID == *playerTeamID {
+			pointsBefore = g.Teams[i].Points
+		}
+	}
+
+	question, err := g.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question %v", err)
+	}
+
+	hub := NewHub()
+
+	go func() {
+		hub.Run()
+	}()
+
+	client := Client{
+		hub:      hub,
+		game:     g,
+		playerID: 1,
+		send:     make(chan []byte, 1),
+	}
+
+	hub.register <- &client
+
+	answerPayload := AnswerPayload{
+		Answer: question.CorrectAnswer,
+	}
+	payload, err := json.Marshal(answerPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+
+	message := Message{
+		Type:    Answer,
+		Payload: payload,
+	}
+
+	client.handleAnswer(message)
+
+	pointsAfter := 0
+	for i := range g.Teams {
+		if g.Teams[i].TeamID == *playerTeamID {
+			pointsAfter = g.Teams[i].Points
+			break
+		}
+	}
+
+	if pointsAfter != pointsBefore+100 {
+		t.Errorf("expected points to be %d, got %d", pointsBefore+100, pointsAfter)
+	}
+
+	if g.CurrentItem != 1 {
+		t.Errorf("expected to go on to next item %d, got %d", 1, g.CurrentItem)
+	}
+
+	if g.CurrentRound != 1 {
+		t.Errorf("expected to stay in round number %d got %d", 1, g.CurrentRound)
+	}
+
+	var msgData []byte
+
+	select {
+	case msgData = <-client.send:
+
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for broadcast message")
+	}
+
+	var msg Message
+	if err := json.Unmarshal(msgData, &msg); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+	if msg.Type != GameStateUpdate {
+		t.Errorf("expected message type %s, got %s", GameStateUpdate, msg.Type)
+	}
+	var gameStatePayload GameStatePayload
+
+	if err := json.Unmarshal(msg.Payload, &gameStatePayload); err != nil {
+		t.Fatalf("could not unmarshal game state payload: %v", err)
+	}
+
+	if gameStatePayload.Question == nil {
+		t.Fatal("expected question in game state payload")
+	}
+}
+
+func TestHandleAnswer_WrongAnswer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	g := initializeGame(t)
+
+	g.CurrentRound = 1
+	g.CurrentItem = 0
+
+	playerID := uint(1)
+	var playerTeamID *uint
+	for i := range g.Players {
+		if g.Players[i].PlayerID == playerID {
+			playerTeamID = g.Players[i].TeamID
+			break
+		}
+	}
+	if playerTeamID == nil {
+		t.Fatalf("player team id was not found")
+	}
+
+	pointsBefore := 0
+	for i := range g.Teams {
+		if g.Teams[i].TeamID == *playerTeamID {
+			pointsBefore = g.Teams[i].Points
+		}
+	}
+
+	question, err := g.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question %v", err)
+	}
+
+	wrongAnswer := "wrong answer"
+	if wrongAnswer == question.CorrectAnswer {
+		wrongAnswer = "another wrong answer"
+	}
+	hub := NewHub()
+
+	go func() {
+		hub.Run()
+	}()
+
+	client := Client{
+		hub:      hub,
+		game:     g,
+		playerID: 1,
+		send:     make(chan []byte, 1),
+	}
+
+	hub.register <- &client
+
+	answerPayload := AnswerPayload{
+		Answer: wrongAnswer,
+	}
+	payload, err := json.Marshal(answerPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+
+	message := Message{
+		Type:    Answer,
+		Payload: payload,
+	}
+
+	client.handleAnswer(message)
+
+	nextQuestion, err := g.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get next question %v", err)
+	}
+
+	pointsAfter := 0
+	for i := range g.Teams {
+		if g.Teams[i].TeamID == *playerTeamID {
+			pointsAfter = g.Teams[i].Points
+			break
+		}
+	}
+
+	if pointsAfter != pointsBefore {
+		t.Errorf("expected points to be %d, got %d", pointsBefore, pointsAfter)
+	}
+
+	if g.CurrentItem != 1 {
+		t.Errorf("expected to go on to next item %d, got %d", 1, g.CurrentItem)
+	}
+
+	if g.CurrentRound != 1 {
+		t.Errorf("expected to stay in round number %d got %d", 1, g.CurrentRound)
+	}
+
+	var msgData []byte
+
+	select {
+	case msgData = <-client.send:
+
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for broadcast message")
+	}
+
+	var msg Message
+	if err := json.Unmarshal(msgData, &msg); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+	if msg.Type != GameStateUpdate {
+		t.Errorf("expected message type %s, got %s", GameStateUpdate, msg.Type)
+	}
+	var gameStatePayload GameStatePayload
+
+	if err := json.Unmarshal(msg.Payload, &gameStatePayload); err != nil {
+		t.Fatalf("could not unmarshal game state payload: %v", err)
+	}
+
+	if gameStatePayload.Question.Question != nextQuestion.Question {
+		t.Errorf("expected to get next question %q, got %q", nextQuestion.Question, gameStatePayload.Question.Question)
+	}
+
+	if gameStatePayload.Question == nil {
+		t.Fatal("expected question in game state payload")
+	}
+}
