@@ -12,10 +12,11 @@ type Player = {
 function App() {
 
   const [username, setUsername] = useState('')
+  const [hostPlayerId, setHostPlayerId] = useState<number | null>(null)
   const [status, setStatus] = useState('Disconnected')
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
-
+  null
   function handleJoinGame() {
     const name = username.trim()
 
@@ -44,7 +45,10 @@ function App() {
       if (message.type == 'game_state_update') {
         const gameState = message.payload
         setPlayers(gameState.players)
+        setHostPlayerId(gameState.host_player_id)
+        console.log(gameState.players)
       }
+
       console.log('Message from server:', message)
     })
 
@@ -57,16 +61,22 @@ function App() {
       setStatus('Connection error')
     })
   }
+
   return (
 
 
     <>
       <section id="center">
+
         <h2>Players in Lobby</h2>
         <ul>
           {players.map((player) => (
             <li key={player.player_id}>
               {player.player_name}
+
+              {player.player_id === hostPlayerId && (
+                <span> (Host)</span>
+              )}
             </li>
           ))}
         </ul>
