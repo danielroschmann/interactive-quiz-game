@@ -3,12 +3,18 @@ import './App.css'
 
 
 
+type Player = {
+  player_id: number,
+  player_name: string,
+  team_id?: number
+}
 
 function App() {
 
   const [username, setUsername] = useState('')
   const [status, setStatus] = useState('Disconnected')
   const socketRef = useRef<WebSocket | null>(null)
+  const [players, setPlayers] = useState<Player[]>([])
 
   function handleJoinGame() {
     const name = username.trim()
@@ -35,6 +41,10 @@ function App() {
 
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data)
+      if (message.type == 'game_state_update') {
+        const gameState = message.payload
+        setPlayers(gameState.players)
+      }
       console.log('Message from server:', message)
     })
 
@@ -52,6 +62,14 @@ function App() {
 
     <>
       <section id="center">
+        <h2>Players in Lobby</h2>
+        <ul>
+          {players.map((player) => (
+            <li key={player.player_id}>
+              {player.player_name}
+            </li>
+          ))}
+        </ul>
         <label>
           Name:
           <input
@@ -69,7 +87,7 @@ function App() {
         >
           Join Game
         </button>
-      </section>
+      </section >
     </>
   )
 }
