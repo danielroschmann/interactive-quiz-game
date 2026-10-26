@@ -16,7 +16,7 @@ function App() {
   const [status, setStatus] = useState('Disconnected')
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
-  null
+  const [playerId, setPlayerId] = useState<number | null>(null)
   function handleJoinGame() {
     const name = username.trim()
 
@@ -42,11 +42,17 @@ function App() {
 
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data)
+      if (message.type === 'player_joined') {
+        const joinedPlayer = message.payload
+
+        if (joinedPlayer.player_name === name) {
+          setPlayerId(joinedPlayer.player_id)
+        }
+      }
       if (message.type == 'game_state_update') {
         const gameState = message.payload
         setPlayers(gameState.players)
         setHostPlayerId(gameState.host_player_id)
-        console.log(gameState.players)
       }
 
       console.log('Message from server:', message)
@@ -62,6 +68,20 @@ function App() {
     })
   }
 
+  function handleStartGame() {
+
+    const socket = socketRef.current
+    if (!socket || socket.readyState != WebSocket.OPEN) {
+      setStatus('Not connected')
+      return
+    }
+
+    socket.send(JSON.stringify({
+      type: 'start_game'
+    }))
+
+  }
+
   return (
 
 
@@ -73,6 +93,7 @@ function App() {
           {players.map((player) => (
             <li key={player.player_id}>
               {player.player_name}
+
 
               {player.player_id === hostPlayerId && (
                 <span> (Host)</span>
@@ -97,6 +118,15 @@ function App() {
         >
           Join Game
         </button>
+        {playerId !== null && playerId === hostPlayerId && (
+          <button
+            type="button"
+            className='counter'
+            onClick={handleStartGame}
+          >
+            Start Game
+          </button>
+        )}
       </section >
     </>
   )
