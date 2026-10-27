@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { type FormEvent, useRef, useState } from 'react'
 import './App.css'
 
 
@@ -36,6 +36,7 @@ function App() {
   const [roundType, setRoundType] = useState<RoundType>('multiple_choice')
   const [question, setQuestion] = useState<Question | null>(null)
   const [buzzPlayerId, setBuzzPlayerId] = useState<number | null>(null)
+  const [buzzAnswer, setBuzzAnswer] = useState('')
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerId, setPlayerId] = useState<number | null>(null)
@@ -142,6 +143,19 @@ function App() {
     }))
   }
 
+  function handleBuzzAnswerSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const answer = buzzAnswer.trim()
+
+    if (!answer) {
+      return
+    }
+
+    handleAnswer(answer)
+    setBuzzAnswer('')
+  }
+
 
   return (
 
@@ -217,15 +231,38 @@ function App() {
 
               {roundType === 'fastest_buzz' && (
                 <>
-                  <button
-                    type='button'
-                    onClick={handleBuzz}
-                  >
-                    Buzz
-                  </button>
+                  {buzzPlayerId === null && (
+                    <button
+                      type='button'
+                      onClick={handleBuzz}
+                    >
+                      Buzz
+                    </button>
+                  )}
 
                   {buzzedPlayer && (
                     <h1>{buzzedPlayer.player_name} has buzzed first!</h1>
+                  )}
+
+                  {playerId !== null && buzzPlayerId !== null && playerId === buzzPlayerId && (
+                    <form onSubmit={handleBuzzAnswerSubmit}>
+                      <label>
+                        Type Answer
+                        <input
+                          type="text"
+                          name="buzz_answer"
+                          value={buzzAnswer}
+                          onChange={(event) => setBuzzAnswer(event.target.value)}
+                        >
+                        </input>
+                      </label>
+
+                      <button
+                        type='submit'
+                      >
+                        Submit Answer
+                      </button>
+                    </form>
                   )}
                 </>
               )}
