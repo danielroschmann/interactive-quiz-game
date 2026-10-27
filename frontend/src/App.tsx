@@ -11,18 +11,21 @@ type Player = {
 
 type Question = {
   question: string
-  answer_options: string[]
+  answer_options?: string[]
 }
 
 type GameState = 'lobby' | 'in_progress' | 'finished'
+type RoundType = 'multiple_choice' | 'fastest_buzz' | 'challenge'
+
 type GameStatePayload = {
   state: GameState
   players: Player[]
   host_player_id: number
   current_round: number
   current_item: number
-  round_type: string
+  round_type: RoundType
   question?: Question | null
+  buzzed_player_id?: number
 }
 
 function App() {
@@ -30,7 +33,9 @@ function App() {
   const [username, setUsername] = useState('')
   const [hostPlayerId, setHostPlayerId] = useState<number | null>(null)
   const [status, setStatus] = useState('Disconnected')
+  const [roundType, setRoundType] = useState<RoundType>('multiple_choice')
   const [question, setQuestion] = useState<Question | null>(null)
+  const [buzzPlayer, setBuzzPlayer] = useState<number | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerId, setPlayerId] = useState<number | null>(null)
@@ -73,6 +78,8 @@ function App() {
         setHostPlayerId(payload.host_player_id)
         setGameState(payload.state)
         setQuestion(payload.question ?? null)
+        setRoundType(payload.round_type)
+        setBuzzPlayer(payload.buzzed_player_id)
       }
 
       console.log('Message from server:', message)
@@ -115,6 +122,19 @@ function App() {
       payload: {
         answer: answer,
       },
+    }))
+  }
+
+  function handleBuzz() {
+    const socket = socketRef.current
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setStatus('Not connected')
+      return
+    }
+
+    socket.send(JSON.stringify({
+      type: 'buzz',
     }))
   }
 
@@ -175,19 +195,33 @@ function App() {
             <>
               <h3>{question.question}</h3>
 
-              <ul>
-                {question.answer_options.map((answerOption, index) => (
-                  <li key={`${index}-${answerOption}`}>
-                    <button
-                      type='button'
-                      onClick={() => handleAnswer(answerOption)}
-                    >
-                      {answerOption}
-                    </button>
+              {roundType === 'multiple_choice' && (
+                <ul>
+                  {(question.answer_options ?? []).map((answerOption, index) => (
+                    <li key={`${index}-${answerOption}`}>
+                      <button
+                        type='button'
+                        onClick={() => handleAnswer(answerOption)}
+                      >
+                        {answerOption}
+                      </button>
 
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {roundType === 'fastest_buzz' && (
+                <>
+                  <button
+                    type='button'
+                    onClick={handleBuzz}
+                  >
+                    Buzz
+                  </button>
+                </>
+              )}
+
             </>
           ) : (
             <p>Loading question...</p>
