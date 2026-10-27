@@ -14,6 +14,11 @@ type Question = {
   answer_options?: string[]
 }
 
+type Challenge = {
+  title: string
+  description: string
+}
+
 type GameState = 'lobby' | 'in_progress' | 'finished'
 type RoundType = 'multiple_choice' | 'fastest_buzz' | 'challenge'
 
@@ -25,6 +30,7 @@ type GameStatePayload = {
   current_item: number
   round_type: RoundType
   question?: Question | null
+  challenge?: Challenge | null
   buzzed_player_id?: number
 }
 
@@ -35,6 +41,7 @@ function App() {
   const [status, setStatus] = useState('Disconnected')
   const [roundType, setRoundType] = useState<RoundType>('multiple_choice')
   const [question, setQuestion] = useState<Question | null>(null)
+  const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [buzzPlayerId, setBuzzPlayerId] = useState<number | null>(null)
   const [buzzAnswer, setBuzzAnswer] = useState('')
   const socketRef = useRef<WebSocket | null>(null)
@@ -85,6 +92,7 @@ function App() {
         setQuestion(payload.question ?? null)
         setRoundType(payload.round_type)
         setBuzzPlayerId(payload.buzzed_player_id ?? null)
+        setChallenge(payload.challenge ?? null)
       }
 
       console.log('Message from server:', message)
@@ -208,8 +216,16 @@ function App() {
       {gameState === 'in_progress' && (
         <>
           <h2>Quiz</h2>
-          <p>Game is started!</p>
-          {question ? (
+          {roundType === 'challenge' ? (
+            challenge ? (
+              <>
+                <h2>{challenge.title}</h2>
+                <p>{challenge.description}</p>
+              </>
+            ) : (
+              <p>Loading challenge...</p>
+            )
+          ) : question ? (
             <>
               <h3>{question.question}</h3>
 
