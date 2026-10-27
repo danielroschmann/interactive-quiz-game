@@ -35,11 +35,15 @@ function App() {
   const [status, setStatus] = useState('Disconnected')
   const [roundType, setRoundType] = useState<RoundType>('multiple_choice')
   const [question, setQuestion] = useState<Question | null>(null)
-  const [buzzPlayer, setBuzzPlayer] = useState<number | null>(null)
+  const [buzzPlayerId, setBuzzPlayerId] = useState<number | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [gameState, setGameState] = useState<GameState>('lobby')
+
+  const buzzedPlayer = players.find(
+    (player) => player.player_id === buzzPlayerId
+  )
   function handleJoinGame() {
     const name = username.trim()
 
@@ -79,7 +83,7 @@ function App() {
         setGameState(payload.state)
         setQuestion(payload.question ?? null)
         setRoundType(payload.round_type)
-        setBuzzPlayer(payload.buzzed_player_id)
+        setBuzzPlayerId(payload.buzzed_player_id ?? null)
       }
 
       console.log('Message from server:', message)
@@ -219,6 +223,10 @@ function App() {
                   >
                     Buzz
                   </button>
+
+                  {buzzedPlayer && (
+                    <h1>{buzzedPlayer.player_name} has buzzed first!</h1>
+                  )}
                 </>
               )}
 
