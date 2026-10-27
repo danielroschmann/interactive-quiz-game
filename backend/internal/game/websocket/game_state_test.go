@@ -1041,7 +1041,9 @@ func TestWebSocket_JoinGame(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	conn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", nil)
+	header := http.Header{}
+	header.Set("Origin", "http://localhost:5173")
+	conn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", header)
 	if err != nil {
 		t.Fatalf("could not connect to websocket %v", err)
 	}
@@ -1118,13 +1120,11 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	g := game.NewGame(rounds)
-
 	hub := NewHub()
 
 	go hub.Run()
 
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		ServeWs(hub, g, w, r)
 	})
@@ -1133,67 +1133,167 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	connJohn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", nil)
+
+	header := http.Header{}
+	header.Set("Origin", "http://localhost:5173")
+
+	// Helper til at læse en enkelt besked fra en WebSocket.
+	readMessage := func(conn *gorilla.Conn) Message {
+		t.Helper()
+
+		if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Fatalf("could not set read deadline: %v", err)
+		}
+
+		var msg Message
+		if err := conn.ReadJSON(&msg); err != nil {
+			t.Fatalf("could not read message: %v", err)
+		}
+
+		return msg
+	}
+
+	connJohn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", header)
 	if err != nil {
-		t.Fatalf("could not connect to websocket %v", err)
+		t.Fatalf("could not connect John to websocket: %v", err)
 	}
 	defer connJohn.Close()
-	connDoe, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", nil)
-	if err != nil {
-		t.Fatalf("could not connect to websocket %v", err)
-	}
-	defer connDoe.Close()
 
 	johnJoinPayload := game.JoinGamePayload{
 		PlayerName: "John",
 	}
-	doeJoinPayload := game.JoinGamePayload{
-		PlayerName: "Doe",
-	}
 
 	johnPayloadData, err := json.Marshal(johnJoinPayload)
 	if err != nil {
-		t.Fatalf("could not marshal payload %v", err)
+		t.Fatalf("could not marshal John's payload: %v", err)
 	}
+
 	johnMsgJoinGame := Message{
 		Type:    JoinGame,
 		Payload: johnPayloadData,
 	}
 
+	if err := connJohn.WriteJSON(johnMsgJoinGame); err != nil {
+		t.Fatalf("could not send John's join message: %v", err)
+	}
+
+	johnJoinedMessage := readMessage(connJohn)
+
+	if johnJoinedMessage.Type != PlayerJoined {
+		t.Fatalf(
+			"expected message type %s, got %s",
+			PlayerJoined,
+			johnJoinedMessage.Type,
+		)
+	}
+
+	var johnJoined game.PlayerJoinedPayload
+	if err := json.Unmarshal(johnJoinedMessage.Payload, &johnJoined); err != nil {
+		t.Fatalf("could not unmarshal John's joined payload: %v", err)
+	}
+
+	if johnJoined.PlayerName != "John" {
+		t.Fatalf("expected joined player John, got %s", johnJoined.PlayerName)
+	}
+
+	johnLobbyMessage := readMessage(connJohn)
+
+	if johnLobbyMessage.Type != GameStateUpdate {
+		t.Fatalf(
+			"expected message type %s, got %s",
+			GameStateUpdate,
+			johnLobbyMessage.Type,
+		)
+	}
+
+	var johnLobbyState GameStatePayload
+	if err := json.Unmarshal(johnLobbyMessage.Payload, &johnLobbyState); err != nil {
+		t.Fatalf("could not unmarshal John's lobby state: %v", err)
+	}
+
+	if johnLobbyState.State != string(game.GameStateLobby) {
+		t.Fatalf("expected lobby state, got %s", johnLobbyState.State)
+	}
+
+	if johnLobbyState.HostPlayerID != johnJoined.PlayerID {
+		t.Fatalf(
+			"expected John (ID %d) to be host, got %d",
+			johnJoined.PlayerID,
+			johnLobbyState.HostPlayerID,
+		)
+	}
+
+	connDoe, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", header)
+	if err != nil {
+		t.Fatalf("could not connect Doe to websocket: %v", err)
+	}
+	defer connDoe.Close()
+
+	doeJoinPayload := game.JoinGamePayload{
+		PlayerName: "Doe",
+	}
+
 	doePayloadData, err := json.Marshal(doeJoinPayload)
 	if err != nil {
-		t.Fatalf("could not marshal payload %v", err)
+		t.Fatalf("could not marshal Doe's payload: %v", err)
 	}
+
 	doeMsgJoinGame := Message{
 		Type:    JoinGame,
 		Payload: doePayloadData,
 	}
 
-	if err := connJohn.WriteJSON(johnMsgJoinGame); err != nil {
-		t.Fatalf("could not write json %v", err)
-	}
-
 	if err := connDoe.WriteJSON(doeMsgJoinGame); err != nil {
-		t.Fatalf("could not write json %v", err)
-	}
-	if err := connJohn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("could not set read deadline: %v", err)
+		t.Fatalf("could not send Doe's join message: %v", err)
 	}
 
-	if err := connDoe.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("could not set read deadline: %v", err)
-	}
-	var playerJoinedMessage Message
+	doeJoinedMessage := readMessage(connJohn)
 
-	if err := connJohn.ReadJSON(&playerJoinedMessage); err != nil {
-		t.Fatalf("could not read PlayerJoined message: %v", err)
+	if doeJoinedMessage.Type != PlayerJoined {
+		t.Fatalf(
+			"expected message type %s, got %s",
+			PlayerJoined,
+			doeJoinedMessage.Type,
+		)
 	}
 
-	if err := connDoe.ReadJSON(&playerJoinedMessage); err != nil {
-		t.Fatalf("could not read PlayerJoined message: %v", err)
+	var doeJoined game.PlayerJoinedPayload
+	if err := json.Unmarshal(doeJoinedMessage.Payload, &doeJoined); err != nil {
+		t.Fatalf("could not unmarshal Doe's joined payload: %v", err)
 	}
-	if playerJoinedMessage.Type != PlayerJoined {
-		t.Fatalf("expected message type %s, got %s", PlayerJoined, playerJoinedMessage.Type)
+
+	if doeJoined.PlayerName != "Doe" {
+		t.Fatalf("expected joined player Doe, got %s", doeJoined.PlayerName)
+	}
+
+	doeLobbyMessage := readMessage(connJohn)
+
+	if doeLobbyMessage.Type != GameStateUpdate {
+		t.Fatalf(
+			"expected message type %s, got %s",
+			GameStateUpdate,
+			doeLobbyMessage.Type,
+		)
+	}
+
+	var lobbyStateWithBothPlayers GameStatePayload
+	if err := json.Unmarshal(doeLobbyMessage.Payload, &lobbyStateWithBothPlayers); err != nil {
+		t.Fatalf("could not unmarshal lobby state: %v", err)
+	}
+
+	if len(lobbyStateWithBothPlayers.Players) != 2 {
+		t.Fatalf(
+			"expected 2 players in lobby, got %d",
+			len(lobbyStateWithBothPlayers.Players),
+		)
+	}
+
+	if lobbyStateWithBothPlayers.HostPlayerID != johnJoined.PlayerID {
+		t.Fatalf(
+			"expected John to remain host with ID %d, got %d",
+			johnJoined.PlayerID,
+			lobbyStateWithBothPlayers.HostPlayerID,
+		)
 	}
 
 	startMessage := Message{
@@ -1201,7 +1301,7 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	if err := connJohn.WriteJSON(startMessage); err != nil {
-		t.Fatalf("could not send start game message %v", err)
+		t.Fatalf("could not send start game message: %v", err)
 	}
 
 	johnPayload := readGameInProgress(t, connJohn)
@@ -1221,5 +1321,222 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 
 	if doePayload.Question == nil {
 		t.Error("expected Doe to receive the first question")
+	}
+}
+
+func TestHandleCompleteChallenge_NonHostCannotCompleteChallenge(t *testing.T) {
+	g := initializeGame(t)
+
+	g.CurrentRound = 3
+	g.CurrentItem = 0
+
+	hub := NewHub()
+
+	go hub.Run()
+
+	pointsBefore := make(map[uint]int)
+
+	for _, team := range g.Teams {
+		pointsBefore[team.TeamID] = team.Points
+	}
+
+	hostPlayerID := g.Players[0].PlayerID
+	playerID := g.Players[1].PlayerID
+	g.HostPlayerID = hostPlayerID
+	client := Client{
+		hub:      hub,
+		game:     g,
+		send:     make(chan []byte, 1),
+		playerID: playerID,
+	}
+
+	hub.register <- &client
+
+	team1 := g.Teams[0].TeamID
+	team2 := g.Teams[1].TeamID
+	teamPoints := map[uint]int{
+		team1: 100,
+		team2: 0,
+	}
+
+	payload := CompleteChallengePayload{
+		teamPoints,
+	}
+
+	p, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+	if client.playerID == g.HostPlayerID {
+		t.Fatal("test setup error: client is the host")
+	}
+	msg := Message{
+		Type:    CompleteChallenge,
+		Payload: p,
+	}
+
+	client.handleCompleteChallenge(msg)
+
+	for _, team := range g.Teams {
+		expectedPoints := pointsBefore[team.TeamID]
+		if team.Points != expectedPoints {
+			t.Errorf("team %d: expected points to remain %d, got %d", team.TeamID, expectedPoints, team.Points)
+		}
+	}
+
+	if g.CurrentItem != 0 {
+		t.Errorf("expected to stay at current item %d, got %d", 0, g.CurrentItem)
+	}
+
+	select {
+	case msgData := <-client.send:
+		t.Fatalf("did not expect broadcast, got %s", string(msgData))
+	default:
+
+	}
+
+	if g.HostPlayerID != hostPlayerID {
+		t.Errorf("expected host player to have id %d, got %d", hostPlayerID, g.HostPlayerID)
+	}
+}
+
+func TestHandleCompleteChallenge_MissingTeamPoints(t *testing.T) {
+	g := initializeGame(t)
+
+	g.CurrentRound = 3
+	g.CurrentItem = 0
+
+	hub := NewHub()
+
+	go hub.Run()
+
+	pointsBefore := make(map[uint]int)
+
+	for _, team := range g.Teams {
+		pointsBefore[team.TeamID] = team.Points
+	}
+
+	playerID := g.Players[0].PlayerID
+	g.HostPlayerID = playerID
+	client := Client{
+		hub:      hub,
+		game:     g,
+		send:     make(chan []byte, 1),
+		playerID: playerID,
+	}
+
+	hub.register <- &client
+
+	team1 := g.Teams[0].TeamID
+	teamPoints := map[uint]int{
+		team1: 100,
+	}
+
+	payload := CompleteChallengePayload{
+		teamPoints,
+	}
+
+	p, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+
+	msg := Message{
+		Type:    CompleteChallenge,
+		Payload: p,
+	}
+
+	client.handleCompleteChallenge(msg)
+
+	for _, team := range g.Teams {
+		expectedPoints := pointsBefore[team.TeamID]
+		if team.Points != expectedPoints {
+			t.Errorf("team %d: expected points to remain %d, got %d", team.TeamID, expectedPoints, team.Points)
+		}
+	}
+	if g.CurrentItem != 0 {
+		t.Errorf("expected to stay at current item %d, got %d", 0, g.CurrentItem)
+	}
+
+	select {
+	case msgData := <-client.send:
+		t.Fatalf("did not expect broadcast, got %s", string(msgData))
+	default:
+
+	}
+}
+
+func TestHandleCompleteChallenge_UnknownTeamID(t *testing.T) {
+	g := initializeGame(t)
+
+	g.CurrentRound = 3
+	g.CurrentItem = 0
+
+	hub := NewHub()
+
+	go hub.Run()
+
+	pointsBefore := make(map[uint]int)
+
+	for _, team := range g.Teams {
+		pointsBefore[team.TeamID] = team.Points
+	}
+
+	playerID := g.Players[0].PlayerID
+	g.HostPlayerID = playerID
+	client := Client{
+		hub:      hub,
+		game:     g,
+		send:     make(chan []byte, 1),
+		playerID: playerID,
+	}
+
+	hub.register <- &client
+
+	team1 := g.Teams[0].TeamID
+	team2 := g.Teams[1].TeamID
+	unknownTeamID := uint(0)
+	for _, team := range g.Teams {
+		if team.TeamID >= unknownTeamID {
+			unknownTeamID = team.TeamID + 1
+		}
+	}
+	teamPoints := map[uint]int{
+		team1:         100,
+		team2:         0,
+		unknownTeamID: 100,
+	}
+
+	payload := CompleteChallengePayload{
+		teamPoints,
+	}
+
+	p, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("could not marshal payload %v", err)
+	}
+
+	msg := Message{
+		Type:    CompleteChallenge,
+		Payload: p,
+	}
+
+	client.handleCompleteChallenge(msg)
+
+	for _, team := range g.Teams {
+		expectedPoints := pointsBefore[team.TeamID]
+		if team.Points != expectedPoints {
+			t.Errorf("team %d: expected points to remain %d, got %d", team.TeamID, expectedPoints, team.Points)
+		}
+	}
+	if g.CurrentItem != 0 {
+		t.Errorf("expected to stay at current item %d, got %d", 0, g.CurrentItem)
+	}
+
+	select {
+	case msgData := <-client.send:
+		t.Fatalf("did not expect broadcast, got %s", string(msgData))
+	default:
+
 	}
 }

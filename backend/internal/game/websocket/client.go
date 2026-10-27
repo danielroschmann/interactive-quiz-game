@@ -82,10 +82,48 @@ func (c *Client) readPump() {
 			c.handleAnswer(msg)
 		case StartGame:
 			c.handleStartGame()
+		case CompleteChallenge:
+			c.handleCompleteChallenge(msg)
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
 
+	}
+}
+
+func (c *Client) handleCompleteChallenge(msg Message) {
+	if c.playerID == 0 {
+		log.Printf("cannot complete challenge: player has not joined")
+		return
+	}
+	var payload CompleteChallengePayload
+
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		log.Printf("could not decode challenge points %v", err)
+		return
+	}
+
+	if payload.TeamPoints == nil {
+		log.Printf("cannot complete challenge: team points are missing")
+		return
+	}
+
+	c.hub.mu.Lock()
+	if c.playerID != c.game.HostPlayerID {
+		c.hub.mu.Unlock()
+		log.Printf("player %d tried to complete challenge without being host", c.playerID)
+		return
+	}
+
+	err := c.game.CompleteChallenge(payload.TeamPoints)
+	c.hub.mu.Unlock()
+	if err != nil {
+		log.Printf("could not complete challenge %v", err)
+		return
+	}
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("could not broadcast game state %v", err)
 	}
 }
 

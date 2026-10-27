@@ -5,14 +5,15 @@ import "encoding/json"
 type MessageType string
 
 const (
-	JoinGame        MessageType = "join_game"
-	LeaveGame       MessageType = "leave_game"
-	Buzz            MessageType = "buzz"
-	Answer          MessageType = "answer"
-	PlayerJoined    MessageType = "player_joined"
-	PlayerLeft      MessageType = "player_left"
-	GameStateUpdate MessageType = "game_state_update"
-	StartGame       MessageType = "start_game"
+	JoinGame          MessageType = "join_game"
+	LeaveGame         MessageType = "leave_game"
+	Buzz              MessageType = "buzz"
+	Answer            MessageType = "answer"
+	PlayerJoined      MessageType = "player_joined"
+	PlayerLeft        MessageType = "player_left"
+	GameStateUpdate   MessageType = "game_state_update"
+	StartGame         MessageType = "start_game"
+	CompleteChallenge MessageType = "complete_challenge"
 )
 
 type PlayerView struct {
@@ -39,6 +40,10 @@ type ChallengeView struct {
 
 type AnswerPayload struct {
 	Answer string `json:"answer"`
+}
+
+type CompleteChallengePayload struct {
+	TeamPoints map[uint]int `json:"team_points"`
 }
 
 type GameStatePayload struct {
