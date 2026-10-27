@@ -9,6 +9,11 @@ type Player = {
   team_id?: number
 }
 
+type Question = {
+  question: string
+  answer_options: string[]
+}
+
 type GameState = 'lobby' | 'in_progress' | 'finished'
 type GameStatePayload = {
   state: GameState
@@ -17,6 +22,7 @@ type GameStatePayload = {
   current_round: number
   current_item: number
   round_type: string
+  question?: Question | null
 }
 
 function App() {
@@ -24,6 +30,7 @@ function App() {
   const [username, setUsername] = useState('')
   const [hostPlayerId, setHostPlayerId] = useState<number | null>(null)
   const [status, setStatus] = useState('Disconnected')
+  const [question, setQuestion] = useState<Question | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerId, setPlayerId] = useState<number | null>(null)
@@ -65,6 +72,7 @@ function App() {
         setPlayers(payload.players)
         setHostPlayerId(payload.host_player_id)
         setGameState(payload.state)
+        setQuestion(payload.question ?? null)
       }
 
       console.log('Message from server:', message)
@@ -93,6 +101,23 @@ function App() {
     }))
 
   }
+
+  function handleAnswer(answer: string) {
+    const socket = socketRef.current
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setStatus('Not connected')
+      return
+    }
+
+    socket.send(JSON.stringify({
+      type: 'answer',
+      payload: {
+        answer: answer,
+      },
+    }))
+  }
+
 
   return (
 
@@ -146,6 +171,27 @@ function App() {
         <>
           <h2>Quiz</h2>
           <p>Game is started!</p>
+          {question ? (
+            <>
+              <h3>{question.question}</h3>
+
+              <ul>
+                {question.answer_options.map((answerOption, index) => (
+                  <li key={`${index}-${answerOption}`}>
+                    <button
+                      type='button'
+                      onClick={() => handleAnswer(answerOption)}
+                    >
+                      {answerOption}
+                    </button>
+
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>Loading question...</p>
+          )}
         </>
       )}
 
