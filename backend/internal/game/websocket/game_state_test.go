@@ -538,8 +538,8 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 		t.Errorf("expected points to be %d, got %d", pointsBefore+100, pointsAfter)
 	}
 
-	if g.CurrentItem != 1 {
-		t.Errorf("expected to go on to next item %d, got %d", 1, g.CurrentItem)
+	if g.CurrentItem != 0 {
+		t.Errorf("expected to remain on current item %d, got %d", 0, g.CurrentItem)
 	}
 
 	if g.CurrentRound != 1 {
@@ -605,8 +605,8 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 		t.Fatal("expected question in game state payload")
 	}
 
-	if gameStatePayload.CurrentItem != 1 {
-		t.Errorf("expected current item 1, got %d", gameStatePayload.CurrentItem)
+	if gameStatePayload.CurrentItem != 0 {
+		t.Errorf("expected current item to remain at 0, got %d", gameStatePayload.CurrentItem)
 	}
 }
 
@@ -693,8 +693,8 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 		t.Errorf("expected points to be %d, got %d", pointsBefore, pointsAfter)
 	}
 
-	if g.CurrentItem != 1 {
-		t.Errorf("expected to go on to next item %d, got %d", 1, g.CurrentItem)
+	if g.CurrentItem != 0 {
+		t.Errorf("expected to go remain at item %d, got %d", 0, g.CurrentItem)
 	}
 
 	if g.CurrentRound != 1 {

@@ -317,7 +317,6 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 				}
 			}
 		}
-		g.NextItem()
 		return correct, nil
 	case RoundTypeFastestBuzz:
 		if g.BuzzedPlayerID == nil {
@@ -336,11 +335,9 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 				}
 			}
 		}
-		g.NextItem()
 		return question.CorrectAnswer == answer, nil
 	case RoundTypeChallenge:
 		return false, ErrUnsupportedRoundType
-		// logik for challenges
 	default:
 		return false, ErrInvalidRoundType
 	}
@@ -390,7 +387,6 @@ func (g *Game) CompleteChallenge(teamPoints map[uint]int) error {
 		pointsToAward := teamPoints[teamID]
 		g.Teams[i].Points += pointsToAward
 	}
-	g.NextItem()
 	return nil
 }
 

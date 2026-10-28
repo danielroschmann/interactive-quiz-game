@@ -729,23 +729,11 @@ func TestSubmitAnswer_WrongAnswerInBuzzRound(t *testing.T) {
 		t.Fatalf("expected to submit answer, got err %v", err)
 	}
 
-	questionsInRound := len(game.Rounds[roundBefore-1].Questions)
-
-	if questionBefore < questionsInRound-1 {
-		if game.CurrentItem != questionBefore+1 {
-			t.Errorf("expected question index %d, got %d", questionBefore+1, game.CurrentItem)
-		}
-	} else if roundBefore < len(game.Rounds) {
-		if game.CurrentRound != roundBefore+1 {
-			t.Errorf("expected round %d, got %d", roundBefore+1, game.CurrentRound)
-		}
-		if game.CurrentItem != 0 {
-			t.Errorf("expected question index 0, got %d", game.CurrentItem)
-		}
-	} else {
-		if game.State != GameStateFinished {
-			t.Errorf("expected game state %s, got %s", GameStateFinished, game.State)
-		}
+	if game.CurrentRound != roundBefore {
+		t.Errorf("expected round to remain %d, got %d", roundBefore, game.CurrentRound)
+	}
+	if game.CurrentItem != questionBefore {
+		t.Errorf("expected question index to remain %d, got %d", questionBefore, game.CurrentItem)
 	}
 
 	if answer {
@@ -907,8 +895,8 @@ func TestSubmitAnswer_WrongAnswerInMultipleChoiceAdvancesToNextItem(t *testing.T
 		t.Errorf("expected answer to be %t", answer)
 	}
 
-	if game.CurrentItem != currentItemBefore+1 {
-		t.Errorf("expected current item to be %d, got %d", currentItemBefore+1, game.CurrentItem)
+	if game.CurrentItem != currentItemBefore {
+		t.Errorf("expected current item to be %d, got %d", currentItemBefore, game.CurrentItem)
 	}
 
 	if game.CurrentRound != currentRoundBefore {
@@ -942,7 +930,7 @@ func TestNextItem_AdvancesToNextChallenge(t *testing.T) {
 	game.NextItem()
 
 	if game.CurrentItem != 1 {
-		t.Errorf("expected current item to be 1 got %d", game.CurrentItem)
+		t.Errorf("expected current item to go to 1 got %d", game.CurrentItem)
 	}
 
 	if game.CurrentRound != 3 {
@@ -1101,8 +1089,8 @@ func TestCompleteChallenge_AwardsPointsAndAdvancesToNextChallenge(t *testing.T) 
 		}
 	}
 
-	if game.CurrentItem != 1 {
-		t.Errorf("expected current item to rise to 1, got %d", game.CurrentItem)
+	if game.CurrentItem != 0 {
+		t.Errorf("expected current item to remain 0, got %d", game.CurrentItem)
 	}
 
 	if game.CurrentRound != 3 {
