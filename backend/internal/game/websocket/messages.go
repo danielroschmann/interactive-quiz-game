@@ -14,6 +14,7 @@ const (
 	GameStateUpdate   MessageType = "game_state_update"
 	StartGame         MessageType = "start_game"
 	CompleteChallenge MessageType = "complete_challenge"
+	AnswerResult      MessageType = "answer_result"
 )
 
 type PlayerView struct {
@@ -40,6 +41,12 @@ type ChallengeView struct {
 
 type AnswerPayload struct {
 	Answer string `json:"answer"`
+}
+
+type AnswerResultPayload struct {
+	PlayerID      uint   `json:"player_id"`
+	IsCorrect     bool   `json:"is_correct"`
+	CorrectAnswer string `json:"correct_answer"`
 }
 
 type CompleteChallengePayload struct {

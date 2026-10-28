@@ -506,7 +506,7 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 		hub:      hub,
 		game:     g,
 		playerID: 1,
-		send:     make(chan []byte, 1),
+		send:     make(chan []byte, 2),
 	}
 
 	hub.register <- &client
@@ -555,21 +555,58 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 		t.Fatalf("timed out waiting for broadcast message")
 	}
 
-	var msg Message
-	if err := json.Unmarshal(msgData, &msg); err != nil {
+	var resultMessage Message
+	if err := json.Unmarshal(msgData, &resultMessage); err != nil {
 		t.Fatalf("could not unmarshal message %v", err)
 	}
-	if msg.Type != GameStateUpdate {
-		t.Errorf("expected message type %s, got %s", GameStateUpdate, msg.Type)
+
+	if resultMessage.Type != AnswerResult {
+		t.Fatalf("expected message type %s, got %s", AnswerResult, resultMessage.Type)
+	}
+
+	var resultPayload AnswerResultPayload
+	if err := json.Unmarshal(resultMessage.Payload, &resultPayload); err != nil {
+		t.Fatalf("could not unmarshal result payload %v", err)
+	}
+
+	if !resultPayload.IsCorrect {
+		t.Error("expected answer to be correct")
+	}
+
+	if resultPayload.PlayerID != playerID {
+		t.Errorf("expected player id %d, got %d", playerID, resultPayload.PlayerID)
+	}
+
+	if resultPayload.CorrectAnswer != question.CorrectAnswer {
+		t.Errorf("expected correct answer %q, got %q", question.CorrectAnswer, resultPayload.CorrectAnswer)
+	}
+
+	select {
+	case msgData = <-client.send:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for game state update")
+	}
+
+	var stateMessage Message
+	if err := json.Unmarshal(msgData, &stateMessage); err != nil {
+		t.Fatalf("could not unmarshal game state message %v", err)
+	}
+
+	if stateMessage.Type != GameStateUpdate {
+		t.Errorf("expected message type %s, got %s", GameStateUpdate, stateMessage.Type)
 	}
 	var gameStatePayload GameStatePayload
 
-	if err := json.Unmarshal(msg.Payload, &gameStatePayload); err != nil {
+	if err := json.Unmarshal(stateMessage.Payload, &gameStatePayload); err != nil {
 		t.Fatalf("could not unmarshal game state payload: %v", err)
 	}
 
 	if gameStatePayload.Question == nil {
 		t.Fatal("expected question in game state payload")
+	}
+
+	if gameStatePayload.CurrentItem != 1 {
+		t.Errorf("expected current item 1, got %d", gameStatePayload.CurrentItem)
 	}
 }
 
@@ -619,7 +656,7 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 		hub:      hub,
 		game:     g,
 		playerID: 1,
-		send:     make(chan []byte, 1),
+		send:     make(chan []byte, 2),
 	}
 
 	hub.register <- &client
@@ -670,19 +707,50 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 	case msgData = <-client.send:
 
 	case <-ctx.Done():
-		t.Fatalf("timed out waiting for broadcast message")
+		t.Fatalf("timed out waiting for answer result")
 	}
 
-	var msg Message
-	if err := json.Unmarshal(msgData, &msg); err != nil {
+	var resultMessage Message
+	if err := json.Unmarshal(msgData, &resultMessage); err != nil {
 		t.Fatalf("could not unmarshal message %v", err)
 	}
-	if msg.Type != GameStateUpdate {
-		t.Errorf("expected message type %s, got %s", GameStateUpdate, msg.Type)
+
+	if resultMessage.Type != AnswerResult {
+		t.Fatalf("expected message type %s, got %s", AnswerResult, resultMessage.Type)
+	}
+
+	var resultPayload AnswerResultPayload
+	if err := json.Unmarshal(resultMessage.Payload, &resultPayload); err != nil {
+		t.Fatalf("could not unmarshal result payload %v", err)
+	}
+
+	if resultPayload.IsCorrect {
+		t.Error("expected answer to be incorrect")
+	}
+
+	if resultPayload.PlayerID != playerID {
+		t.Errorf("expected player id %d, got %d", playerID, resultPayload.PlayerID)
+	}
+
+	if resultPayload.CorrectAnswer != question.CorrectAnswer {
+		t.Errorf("expected correct answer %q, got %q", question.CorrectAnswer, resultPayload.CorrectAnswer)
+	}
+
+	select {
+	case msgData = <-client.send:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for game state update")
+	}
+	var stateMessage Message
+	if err := json.Unmarshal(msgData, &stateMessage); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+	if stateMessage.Type != GameStateUpdate {
+		t.Errorf("expected message type %s, got %s", GameStateUpdate, stateMessage.Type)
 	}
 	var gameStatePayload GameStatePayload
 
-	if err := json.Unmarshal(msg.Payload, &gameStatePayload); err != nil {
+	if err := json.Unmarshal(stateMessage.Payload, &gameStatePayload); err != nil {
 		t.Fatalf("could not unmarshal game state payload: %v", err)
 	}
 

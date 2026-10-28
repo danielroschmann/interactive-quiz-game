@@ -203,14 +203,46 @@ func (c *Client) handleAnswer(msg Message) {
 		log.Printf("failed to unmarshal payload %v", err)
 		return
 	}
-
 	c.hub.mu.Lock()
+	question, err := c.game.GetCurrentQuestion()
+	if err != nil {
+		c.hub.mu.Unlock()
+		log.Printf("could not get current question %v", err)
+		return
+	}
+
+	correctAnswer := question.CorrectAnswer
+
 	correct, err := c.game.SubmitAnswer(c.playerID, answerPayload.Answer)
 	c.hub.mu.Unlock()
 	if err != nil {
 		log.Printf("failed to submit answer %v", err)
 		return
 	}
+	answerResultPayload := AnswerResultPayload{
+		PlayerID:      c.playerID,
+		IsCorrect:     correct,
+		CorrectAnswer: correctAnswer,
+	}
+
+	payload, err := json.Marshal(answerResultPayload)
+	if err != nil {
+		log.Printf("could not marshal payload %v", err)
+		return
+	}
+
+	answerResultMessage := Message{
+		Type:    AnswerResult,
+		Payload: payload,
+	}
+
+	answerData, err := json.Marshal(answerResultMessage)
+	if err != nil {
+		log.Printf("could not marshal payload %v", err)
+		return
+	}
+
+	c.hub.broadcast <- answerData
 
 	log.Printf("answer was %t", correct)
 	if err := c.hub.BroadcastGameState(c.game); err != nil {
