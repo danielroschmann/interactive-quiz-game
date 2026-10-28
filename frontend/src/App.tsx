@@ -264,6 +264,17 @@ function App() {
       {gameState === 'in_progress' && (
         <>
           <h2>Quiz</h2>
+          <div className='scoreboard'>
+            <h3>Scoreboard</h3>
+            <div className='teams'>
+              {teams.map((team) =>
+                <div className='team-score' key={team.team_id}>
+                  <h3>{team.team_name}</h3>
+                  <p>{team.points} points</p>
+                </div>
+              )}
+            </div>
+          </div>
           {roundType === 'challenge' ? (
             challenge ? (
               <>
