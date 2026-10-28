@@ -9,6 +9,12 @@ type Player = {
   team_id?: number
 }
 
+type Team = {
+  team_id: number,
+  team_name: string,
+  points: number
+}
+
 type Question = {
   question: string
   answer_options?: string[]
@@ -42,7 +48,9 @@ function App() {
   const [roundType, setRoundType] = useState<RoundType>('multiple_choice')
   const [question, setQuestion] = useState<Question | null>(null)
   const [challenge, setChallenge] = useState<Challenge | null>(null)
+  const [teams, setTeams] = useState<Team[]>([])
   const [buzzPlayerId, setBuzzPlayerId] = useState<number | null>(null)
+  const [challengePoints, setChallengePoints] = useState<Record<number, string>>({})
   const [buzzAnswer, setBuzzAnswer] = useState('')
   const socketRef = useRef<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
@@ -87,6 +95,7 @@ function App() {
       if (message.type == 'game_state_update') {
         const payload = message.payload
         setPlayers(payload.players)
+        setTeams(payload.teams)
         setHostPlayerId(payload.host_player_id)
         setGameState(payload.state)
         setQuestion(payload.question ?? null)
@@ -164,11 +173,50 @@ function App() {
     setBuzzAnswer('')
   }
 
+  function handleCompleteChallenge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const socket = socketRef.current
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setStatus('Not connected')
+      return
+    }
+
+    const teamPoints: Record<string, number> = {}
+    for (const team of teams) {
+      const input = challengePoints[team.team_id]
+
+      if (input === undefined || input.trim() === '') {
+        setStatus(`Enter points for ${team.team_name}`)
+        return
+      }
+
+      const points = Number(input)
+
+      if (!Number.isInteger(points) || points < 0) {
+        setStatus(`Enter valid points for ${team.team_name}`)
+        return
+      }
+
+      teamPoints[team.team_id] = points
+
+    }
+
+    socket.send(JSON.stringify({
+      type: 'complete_challenge',
+      payload: {
+        team_points: teamPoints,
+      },
+    }))
+
+  }
+
 
   return (
 
 
     <section id="center">
+      <p>{status}</p>
       {gameState === 'lobby' && (
         <>
           <h2>Players in Lobby</h2>
@@ -221,6 +269,39 @@ function App() {
               <>
                 <h2>{challenge.title}</h2>
                 <p>{challenge.description}</p>
+                <form onSubmit={handleCompleteChallenge}>
+                  <ul>
+                    {teams.map((team) => (
+                      <li key={team.team_id}>
+                        <h3>{team.team_name}</h3>
+                        <p>{team.points} points</p>
+
+                        {playerId !== null && playerId === hostPlayerId && (
+                          <label>
+                            Points for this challenge
+                            <input
+                              type='number'
+                              min='0'
+                              step='1'
+                              required
+                              value={challengePoints[team.team_id] ?? ''}
+                              onChange={(event) =>
+                                setChallengePoints((previous) => ({
+                                  ...previous, [team.team_id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {playerId !== null && playerId === hostPlayerId && (
+                    <button type='submit'>
+                      Complete Challenge
+                    </button>
+                  )}
+                </form>
               </>
             ) : (
               <p>Loading challenge...</p>
