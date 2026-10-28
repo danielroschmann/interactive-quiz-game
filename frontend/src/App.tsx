@@ -1,7 +1,11 @@
 import { type FormEvent, useRef, useState } from 'react'
 import './App.css'
 
-
+type AnswerResult = {
+  player_id: number,
+  is_correct: boolean,
+  correct_answer: string
+}
 
 type Player = {
   player_id: number,
@@ -56,6 +60,7 @@ function App() {
   const [players, setPlayers] = useState<Player[]>([])
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [gameState, setGameState] = useState<GameState>('lobby')
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null)
 
   const buzzedPlayer = players.find(
     (player) => player.player_id === buzzPlayerId
@@ -91,6 +96,9 @@ function App() {
         if (joinedPlayer.player_name === name) {
           setPlayerId(joinedPlayer.player_id)
         }
+      }
+      if (message.type == 'answer_result') {
+        setAnswerResult(message.payload ?? null)
       }
       if (message.type == 'game_state_update') {
         const payload = message.payload
@@ -275,6 +283,16 @@ function App() {
               )}
             </div>
           </div>
+          {answerResult && (
+            <div className={answerResult.is_correct ? 'answer-result correct' : 'answer-result incorrect'}>
+              <h3>
+                {answerResult.is_correct ? 'Correct Answer!' : 'Incorrect Answer'}
+              </h3>
+              {!answerResult.is_correct && (
+                <p>Correct answer was: {answerResult.correct_answer}</p>
+              )}
+            </div>
+          )}
           {roundType === 'challenge' ? (
             challenge ? (
               <>
