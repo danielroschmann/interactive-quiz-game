@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
 	"github.com/gorilla/websocket"
@@ -204,6 +205,10 @@ func (c *Client) handleAnswer(msg Message) {
 		return
 	}
 	c.hub.mu.Lock()
+	if c.game.AnswerPending {
+		c.hub.mu.Unlock()
+		return
+	}
 	question, err := c.game.GetCurrentQuestion()
 	if err != nil {
 		c.hub.mu.Unlock()
@@ -212,7 +217,6 @@ func (c *Client) handleAnswer(msg Message) {
 	}
 
 	correctAnswer := question.CorrectAnswer
-
 	correct, err := c.game.SubmitAnswer(c.playerID, answerPayload.Answer)
 	c.hub.mu.Unlock()
 	if err != nil {
@@ -244,10 +248,27 @@ func (c *Client) handleAnswer(msg Message) {
 
 	c.hub.broadcast <- answerData
 
-	log.Printf("answer was %t", correct)
 	if err := c.hub.BroadcastGameState(c.game); err != nil {
 		log.Printf("failed to broadcast game state %v", err)
 	}
+
+	log.Printf("answer was %t", correct)
+
+	time.AfterFunc(3*time.Second, func() {
+		c.hub.mu.Lock()
+
+		if !c.game.AnswerPending || c.game.State != game.GameStateInProgress {
+			c.hub.mu.Unlock()
+			return
+		}
+
+		c.game.NextItem()
+		c.hub.mu.Unlock()
+
+		if err := c.hub.BroadcastGameState(c.game); err != nil {
+			log.Printf("failed to broadcast game state %v", err)
+		}
+	})
 }
 
 func (c *Client) handleBuzz() {

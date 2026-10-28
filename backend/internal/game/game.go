@@ -23,6 +23,7 @@ var (
 	ErrInvalidRoundType     = errors.New("invalid round type")
 	ErrNoCurrentChallenge   = errors.New("no current challenge")
 	ErrInvalidTeamPoints    = errors.New("invalid team points")
+	ErrAnswerPending        = errors.New("an answer is already pending")
 )
 
 type JoinGamePayload struct {
@@ -64,6 +65,7 @@ type Game struct {
 	nextPlayerID   uint
 	BuzzedPlayerID *uint
 	HostPlayerID   uint
+	AnswerPending  bool
 }
 
 type Round struct {
@@ -234,6 +236,7 @@ func (g *Game) NextItem() {
 	if totalItems == 0 {
 		return
 	}
+	g.AnswerPending = false
 	g.BuzzedPlayerID = nil
 	if g.CurrentItem < totalItems-1 {
 		g.CurrentItem++
@@ -283,6 +286,10 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 	if g.State != GameStateInProgress {
 		return false, ErrGameNotInProgress
 	}
+
+	if g.AnswerPending {
+		return false, ErrAnswerPending
+	}
 	currentRound, err := g.GetCurrentRound()
 	if err != nil {
 		return false, ErrNoCurrentRound
@@ -317,6 +324,7 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 				}
 			}
 		}
+		g.AnswerPending = true
 		return correct, nil
 	case RoundTypeFastestBuzz:
 		if g.BuzzedPlayerID == nil {
@@ -333,8 +341,10 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 				} else {
 					g.Teams[i].Points += 100
 				}
+				break
 			}
 		}
+		g.AnswerPending = true
 		return question.CorrectAnswer == answer, nil
 	case RoundTypeChallenge:
 		return false, ErrUnsupportedRoundType
