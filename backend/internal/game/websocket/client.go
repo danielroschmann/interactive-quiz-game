@@ -116,16 +116,41 @@ func (c *Client) handleCompleteChallenge(msg Message) {
 		return
 	}
 
+	if c.game.AnswerPending {
+		c.hub.mu.Unlock()
+		log.Printf("challenge is already completed")
+		return
+	}
+
 	err := c.game.CompleteChallenge(payload.TeamPoints)
-	c.hub.mu.Unlock()
 	if err != nil {
+		c.hub.mu.Unlock()
 		log.Printf("could not complete challenge %v", err)
 		return
 	}
 
+	c.game.AnswerPending = true
+	c.hub.mu.Unlock()
+
 	if err := c.hub.BroadcastGameState(c.game); err != nil {
 		log.Printf("could not broadcast game state %v", err)
 	}
+
+	time.AfterFunc(3*time.Second, func() {
+		c.hub.mu.Lock()
+
+		if !c.game.AnswerPending || c.game.State != game.GameStateInProgress {
+			c.hub.mu.Unlock()
+			return
+		}
+
+		c.game.NextItem()
+		c.hub.mu.Unlock()
+
+		if err := c.hub.BroadcastGameState(c.game); err != nil {
+			log.Printf("could not broadcast game state %v", err)
+		}
+	})
 }
 
 func (c *Client) handleStartGame() {
