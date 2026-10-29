@@ -85,10 +85,39 @@ func (c *Client) readPump() {
 			c.handleStartGame()
 		case CompleteChallenge:
 			c.handleCompleteChallenge(msg)
+		case MakeTeams:
+			c.handleMakeTeams()
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
 
+	}
+}
+
+func (c *Client) handleMakeTeams() {
+	if c.playerID == 0 {
+		log.Printf("cannot make teams: player has not joined")
+		return
+	}
+
+	c.hub.mu.Lock()
+	if c.playerID != c.game.HostPlayerID {
+		c.hub.mu.Unlock()
+		log.Printf("cannot make teams: player is not host")
+		return
+	}
+
+	err := c.game.MakeTeams()
+	if err != nil {
+		c.hub.mu.Unlock()
+		log.Printf("could not make teams %v", err)
+		return
+	}
+
+	c.hub.mu.Unlock()
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("could not broadcast game state %v", err)
 	}
 }
 
@@ -170,12 +199,7 @@ func (c *Client) handleStartGame() {
 		return
 	}
 
-	err := c.game.MakeTeams()
-	if err != nil {
-		log.Printf("could not make teams %v", err)
-		return
-	}
-	err = c.game.StartGame()
+	err := c.game.StartGame()
 	c.hub.mu.Unlock()
 	if err != nil {
 		log.Printf("could not start game %v", err)

@@ -1323,13 +1323,13 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	doeJoinedMessage := readMessage(connJohn)
+	doeOwnJoinedMessage := readMessage(connDoe)
 
 	if doeJoinedMessage.Type != PlayerJoined {
-		t.Fatalf(
-			"expected message type %s, got %s",
-			PlayerJoined,
-			doeJoinedMessage.Type,
-		)
+		t.Fatalf("John: expected PlayerJoined, got %s", doeJoinedMessage.Type)
+	}
+	if doeOwnJoinedMessage.Type != PlayerJoined {
+		t.Fatalf("Doe: expected PlayerJoined, got %s", doeOwnJoinedMessage.Type)
 	}
 
 	var doeJoined game.PlayerJoinedPayload
@@ -1342,13 +1342,13 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	doeLobbyMessage := readMessage(connJohn)
+	doeOwnLobbyMessage := readMessage(connDoe)
 
 	if doeLobbyMessage.Type != GameStateUpdate {
-		t.Fatalf(
-			"expected message type %s, got %s",
-			GameStateUpdate,
-			doeLobbyMessage.Type,
-		)
+		t.Fatalf("John: expected GameStateUpdate, got %s", doeLobbyMessage.Type)
+	}
+	if doeOwnLobbyMessage.Type != GameStateUpdate {
+		t.Fatalf("Doe: expected GameStateUpdate, got %s", doeOwnLobbyMessage.Type)
 	}
 
 	var lobbyStateWithBothPlayers GameStatePayload
@@ -1357,18 +1357,53 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	if len(lobbyStateWithBothPlayers.Players) != 2 {
-		t.Fatalf(
-			"expected 2 players in lobby, got %d",
-			len(lobbyStateWithBothPlayers.Players),
-		)
+		t.Fatalf("expected 2 players in lobby, got %d", len(lobbyStateWithBothPlayers.Players))
 	}
 
 	if lobbyStateWithBothPlayers.HostPlayerID != johnJoined.PlayerID {
+		t.Fatalf("expected John to remain host with ID %d, got %d",
+			johnJoined.PlayerID, lobbyStateWithBothPlayers.HostPlayerID)
+	}
+
+	makeTeamsMessage := Message{
+		Type: MakeTeams,
+	}
+
+	if err := connJohn.WriteJSON(makeTeamsMessage); err != nil {
+		t.Fatalf("could not send message")
+	}
+
+	johnTeamsMessage := readMessage(connJohn)
+	t.Logf("John received message: %s", johnTeamsMessage.Type)
+
+	doeTeamsMessage := readMessage(connDoe)
+	t.Logf("Doe received message: %s", doeTeamsMessage.Type)
+
+	if johnTeamsMessage.Type != GameStateUpdate {
 		t.Fatalf(
-			"expected John to remain host with ID %d, got %d",
-			johnJoined.PlayerID,
-			lobbyStateWithBothPlayers.HostPlayerID,
+			"expected game state update after making teams, got %s",
+			johnTeamsMessage.Type,
 		)
+	}
+
+	if doeTeamsMessage.Type != GameStateUpdate {
+		t.Fatalf(
+			"expected game state update after making teams, got %s",
+			doeTeamsMessage.Type,
+		)
+	}
+
+	var teamsState GameStatePayload
+	if err := json.Unmarshal(johnTeamsMessage.Payload, &teamsState); err != nil {
+		t.Fatalf("could not unmarshal teams state: %v", err)
+	}
+
+	if teamsState.State != string(game.GameStateLobby) {
+		t.Fatalf("expected lobby state after making teams, got %s", teamsState.State)
+	}
+
+	if len(teamsState.Teams) != 2 {
+		t.Fatalf("expected 2 teams, got %d", len(teamsState.Teams))
 	}
 
 	startMessage := Message{

@@ -15,6 +15,7 @@ const (
 	StartGame         MessageType = "start_game"
 	CompleteChallenge MessageType = "complete_challenge"
 	AnswerResult      MessageType = "answer_result"
+	MakeTeams         MessageType = "make_teams"
 )
 
 type PlayerView struct {
