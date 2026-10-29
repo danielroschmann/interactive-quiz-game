@@ -35,6 +35,7 @@ type RoundType = 'multiple_choice' | 'fastest_buzz' | 'challenge'
 type GameStatePayload = {
   state: GameState
   players: Player[]
+  teams: Team[]
   host_player_id: number
   current_round: number
   current_item: number
@@ -135,6 +136,20 @@ function App() {
 
     socket.send(JSON.stringify({
       type: 'start_game'
+    }))
+
+  }
+
+  function handleMakeTeams() {
+    const socket = socketRef.current
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setStatus('Not connected')
+      return
+    }
+
+    socket.send(JSON.stringify({
+      type: 'make_teams',
     }))
 
   }
@@ -240,6 +255,24 @@ function App() {
               </li>
             ))}
           </ul>
+          {teams.length > 0 && (
+            <div className='teams'>
+              {teams.map((team) =>
+
+                <div className='team-score' key={team.team_id}>
+                  <h3>{team.team_name}</h3>
+                  <ul>
+                    {players.filter((player) => player.team_id === team.team_id).map((player) => (
+                      <li key={player.player_id}>
+                        {player.player_name}
+                        {player.player_id === hostPlayerId && ' (Host)'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <label>
             Name:
             <input
@@ -258,13 +291,25 @@ function App() {
             Join Game
           </button>
           {playerId !== null && playerId === hostPlayerId && (
-            <button
-              type="button"
-              className='counter'
-              onClick={handleStartGame}
-            >
-              Start Game
-            </button>
+            <>
+              <button
+                type='button'
+                className='counter'
+                onClick={handleMakeTeams}
+              >
+                Make Teams
+              </button>
+
+              {teams.length > 0 && (
+                <button
+                  type='button'
+                  className='counter'
+                  onClick={handleStartGame}
+                >
+                  Start Game
+                </button>
+              )}
+            </>
           )}
         </>
       )}
