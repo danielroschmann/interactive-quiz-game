@@ -24,6 +24,8 @@ var (
 	ErrNoCurrentChallenge   = errors.New("no current challenge")
 	ErrInvalidTeamPoints    = errors.New("invalid team points")
 	ErrAnswerPending        = errors.New("an answer is already pending")
+	ErrTeamsNotAssigned     = errors.New("teams has not been assigned")
+	ErrGameNotInLobby       = errors.New("game is not in lobby")
 )
 
 type JoinGamePayload struct {
@@ -87,12 +89,15 @@ type Challenge struct {
 }
 
 func NewGame(rounds []Round) *Game {
-	return &Game{
+	g := &Game{
 		Players:      make([]Player, 0),
 		Rounds:       rounds,
 		nextPlayerID: 1,
 		State:        GameStateLobby,
 	}
+
+	g.createTeams()
+	return g
 }
 
 func (g *Game) JoinGame(playerName string) Player {
@@ -400,15 +405,28 @@ func (g *Game) CompleteChallenge(teamPoints map[uint]int) error {
 	return nil
 }
 
+func (g *Game) MakeTeams() error {
+	if g.State != GameStateLobby {
+		return ErrGameNotInLobby
+	}
+
+	if len(g.Players) < 2 {
+		return ErrNotEnoughPlayers
+	}
+
+	g.assignPlayersToTeams()
+	return nil
+}
+
 func (g *Game) StartGame() error {
 	if len(g.Players) < 2 {
 		g.State = GameStateLobby
 		return ErrNotEnoughPlayers
 	}
 
-	g.createTeams()
-
-	g.assignPlayersToTeams()
+	if len(g.Teams) != 2 || len(g.Teams[0].PlayerIDs) == 0 || len(g.Teams[1].PlayerIDs) == 0 {
+		return ErrTeamsNotAssigned
+	}
 
 	g.CurrentRound = 1
 	g.CurrentItem = 0

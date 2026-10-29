@@ -31,6 +31,9 @@ func initializeGame(t *testing.T) *game.Game {
 	g.JoinGame("Bar")
 	g.JoinGame("Troy")
 
+	if err := g.MakeTeams(); err != nil {
+		t.Fatalf("expected to make teams, got %v", err)
+	}
 	if err := g.StartGame(); err != nil {
 		t.Fatalf("expected game to start, got %v", err)
 	}
@@ -905,6 +908,10 @@ func TestHandleStartGame_HostStartsGame(t *testing.T) {
 	}
 
 	hub.register <- &client
+	err = g.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got %v", err)
+	}
 	client.handleStartGame()
 
 	if g.State != game.GameStateInProgress {

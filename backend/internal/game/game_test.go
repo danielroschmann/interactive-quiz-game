@@ -21,6 +21,11 @@ func initializeGame(t *testing.T) *Game {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	if err := game.MakeTeams(); err != nil {
+		t.Fatalf("expected teams to be made, got %v", err)
+	}
+
+	t.Logf("Teams after MakeTeams: %+v", game.Teams)
 	if err := game.StartGame(); err != nil {
 		t.Fatalf("expected game to start, got %v", err)
 	}
@@ -55,6 +60,10 @@ func TestStartGame_WithTwoPlayers_StartsGame(t *testing.T) {
 	game.JoinGame("John")
 	game.JoinGame("Doe")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Errorf("expected to make teams, got error: %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got error: %v", err)
@@ -87,6 +96,27 @@ func TestStartGame_WithOnePlayer_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestStartGame_WithoutTeams_ReturnsError(t *testing.T) {
+	rounds, err := LoadRounds("questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	game := NewGame(rounds)
+	game.JoinGame("John")
+	game.JoinGame("Doe")
+
+	err = game.StartGame()
+
+	if err != ErrTeamsNotAssigned {
+		t.Errorf("expected ErrTeamsNotAssigned, got %v", err)
+	}
+
+	if game.State != GameStateLobby {
+		t.Errorf("expected game to remain in lobby, got %v", game.State)
+	}
+}
+
 func TestStartGame_WithFourPlayers_CreatesTwoTeams(t *testing.T) {
 	rounds, err := LoadRounds("questions.json")
 	if err != nil {
@@ -97,6 +127,11 @@ func TestStartGame_WithFourPlayers_CreatesTwoTeams(t *testing.T) {
 	game.JoinGame("Doe")
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
+
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 
 	err = game.StartGame()
 	if err != nil {
@@ -119,6 +154,10 @@ func TestStartGame_WithFourPlayers_DistributesAllPlayers(t *testing.T) {
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -162,6 +201,10 @@ func TestStartGame_WithFourPlayers_DistributesPlayersEvenly(t *testing.T) {
 	game.JoinGame("Foo")
 	game.JoinGame("Bar")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
@@ -184,6 +227,10 @@ func TestStartGame_WithFivePlayers_DistributesPlayersCorrect(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
@@ -213,6 +260,10 @@ func TestStartGame_AssignsTeamIDToEveryPlayer(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
@@ -262,6 +313,10 @@ func TestStartGame_GameStartsAtFirstQuestion(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Errorf("expected game to start, got err %v", err)
@@ -285,6 +340,10 @@ func TestGetCurrentQuestion_ReturnsFirstQuestion(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -314,6 +373,10 @@ func TestGetCurrentQuestion_ReturnsErrorWhenIndexOutOfRange(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -369,6 +432,10 @@ func TestNextQuestion_GoesFromQuestionZeroToOne(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -393,6 +460,10 @@ func TestGetNextQuestion_GoesFromRoundOneToTwo(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -424,6 +495,10 @@ func TestNextQuestion_ChangeStateToGameStateFinished(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -452,6 +527,10 @@ func TestSubmitAnswer_AssignPointsForCorrectAnswer(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -499,6 +578,14 @@ func TestSubmitAnswer_ReturnsFalseAndZeroPointsForWrongAnswer(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got err %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
@@ -546,6 +633,10 @@ func TestSubmitAnswer_PlayerNotFoundReturnsErr(t *testing.T) {
 	game.JoinGame("Bar")
 	game.JoinGame("Troy")
 
+	err = game.MakeTeams()
+	if err != nil {
+		t.Fatalf("expected to make teams, got %v", err)
+	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
