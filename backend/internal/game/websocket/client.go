@@ -136,18 +136,22 @@ func (c *Client) handleCompleteChallenge(msg Message) {
 		log.Printf("could not broadcast game state %v", err)
 	}
 
-	time.AfterFunc(3*time.Second, func() {
-		c.hub.mu.Lock()
+	c.hub.timerForNextItem(c.game)
+}
 
-		if !c.game.AnswerPending || c.game.State != game.GameStateInProgress {
-			c.hub.mu.Unlock()
+func (h *Hub) timerForNextItem(g *game.Game) {
+	time.AfterFunc(3*time.Second, func() {
+		h.mu.Lock()
+
+		if !g.AnswerPending || g.State != game.GameStateInProgress {
+			h.mu.Unlock()
 			return
 		}
 
-		c.game.NextItem()
-		c.hub.mu.Unlock()
+		g.NextItem()
+		h.mu.Unlock()
 
-		if err := c.hub.BroadcastGameState(c.game); err != nil {
+		if err := h.BroadcastGameState(g); err != nil {
 			log.Printf("could not broadcast game state %v", err)
 		}
 	})
@@ -279,21 +283,7 @@ func (c *Client) handleAnswer(msg Message) {
 
 	log.Printf("answer was %t", correct)
 
-	time.AfterFunc(3*time.Second, func() {
-		c.hub.mu.Lock()
-
-		if !c.game.AnswerPending || c.game.State != game.GameStateInProgress {
-			c.hub.mu.Unlock()
-			return
-		}
-
-		c.game.NextItem()
-		c.hub.mu.Unlock()
-
-		if err := c.hub.BroadcastGameState(c.game); err != nil {
-			log.Printf("failed to broadcast game state %v", err)
-		}
-	})
+	c.hub.timerForNextItem(c.game)
 }
 
 func (c *Client) handleBuzz() {
