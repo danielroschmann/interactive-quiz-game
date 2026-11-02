@@ -199,6 +199,11 @@ func (c *Client) handleStartGame() {
 		return
 	}
 
+	if err := c.game.MakeTeams(); err != nil {
+		log.Printf("could not make teams %v", err)
+		c.hub.mu.Unlock()
+		return
+	}
 	err := c.game.StartGame()
 	c.hub.mu.Unlock()
 	if err != nil {

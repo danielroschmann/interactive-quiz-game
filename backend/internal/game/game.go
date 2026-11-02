@@ -418,6 +418,30 @@ func (g *Game) MakeTeams() error {
 	return nil
 }
 
+func (g *Game) GetWinner() (*Team, bool) {
+	if len(g.Teams) == 0 {
+		return nil, false
+	}
+
+	var winner *Team
+	isDraw := false
+
+	for i := range g.Teams {
+		if winner == nil || g.Teams[i].Points > winner.Points {
+			winner = &g.Teams[i]
+			isDraw = false
+		} else if g.Teams[i].Points == winner.Points {
+			isDraw = true
+		}
+	}
+
+	if isDraw {
+		return nil, true
+	}
+
+	return winner, false
+}
+
 func (g *Game) StartGame() error {
 	if len(g.Players) < 2 {
 		g.State = GameStateLobby

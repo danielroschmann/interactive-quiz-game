@@ -30,6 +30,18 @@ func BuildGameStatePayload(g *game.Game) (GameStatePayload, error) {
 			Points:   g.Teams[i].Points,
 		})
 	}
+	if g.State == game.GameStateFinished {
+		winner, isDraw := g.GetWinner()
+		payload.Result = &GameResultPayload{
+			IsDraw: isDraw,
+		}
+
+		if winner != nil {
+			payload.Result.WinnerTeamID = &winner.TeamID
+		}
+
+		return payload, nil
+	}
 
 	if g.State != game.GameStateInProgress {
 		return payload, nil

@@ -54,17 +54,23 @@ type CompleteChallengePayload struct {
 	TeamPoints map[uint]int `json:"team_points"`
 }
 
+type GameResultPayload struct {
+	WinnerTeamID *uint `json:"winner_team_id"`
+	IsDraw       bool  `json:"is_draw"`
+}
+
 type GameStatePayload struct {
-	State          string         `json:"state"`
-	Players        []PlayerView   `json:"players"`
-	Teams          []TeamView     `json:"teams"`
-	CurrentRound   int            `json:"current_round"`
-	CurrentItem    int            `json:"current_item"`
-	RoundType      string         `json:"round_type"`
-	Question       *QuestionView  `json:"question,omitempty"`
-	Challenge      *ChallengeView `json:"challenge,omitempty"`
-	BuzzedPlayerID *uint          `json:"buzzed_player_id,omitempty"`
-	HostPlayerID   uint           `json:"host_player_id"`
+	State          string             `json:"state"`
+	Players        []PlayerView       `json:"players"`
+	Teams          []TeamView         `json:"teams"`
+	CurrentRound   int                `json:"current_round"`
+	CurrentItem    int                `json:"current_item"`
+	RoundType      string             `json:"round_type"`
+	Question       *QuestionView      `json:"question,omitempty"`
+	Challenge      *ChallengeView     `json:"challenge,omitempty"`
+	BuzzedPlayerID *uint              `json:"buzzed_player_id,omitempty"`
+	HostPlayerID   uint               `json:"host_player_id"`
+	Result         *GameResultPayload `json:"result,omitempty"`
 }
 
 type Message struct {
