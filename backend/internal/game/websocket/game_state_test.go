@@ -1650,3 +1650,44 @@ func TestHandleCompleteChallenge_UnknownTeamID(t *testing.T) {
 
 	}
 }
+
+func TestBuildGameStatePayload_WithWinner(t *testing.T) {
+	winnerID := uint(1)
+
+	g := &game.Game{
+		State: game.GameStateFinished,
+		Teams: []game.Team{
+			{
+				TeamID:   1,
+				TeamName: "Team 1",
+				Points:   500,
+			},
+			{
+				TeamID:   2,
+				TeamName: "Team 2",
+				Points:   300,
+			},
+		},
+	}
+
+	payload, err := BuildGameStatePayload(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.Result == nil {
+		t.Fatal("expected game result")
+	}
+
+	if payload.Result.WinnerTeamID == nil {
+		t.Fatal("expected winner team ID")
+	}
+
+	if *payload.Result.WinnerTeamID != winnerID {
+		t.Errorf("expected winner ID %d, got %d", winnerID, *payload.Result.WinnerTeamID)
+	}
+
+	if payload.Result.IsDraw {
+		t.Error("expected game not to be a draw")
+	}
+}
