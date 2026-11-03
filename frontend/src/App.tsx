@@ -1,6 +1,11 @@
 import { type FormEvent, useRef, useState } from 'react'
 import './App.css'
 
+
+type GameResult = {
+  winner_team_id: number | null,
+  is_draw: boolean
+}
 type AnswerResult = {
   player_id: number,
   is_correct: boolean,
@@ -43,6 +48,7 @@ type GameStatePayload = {
   question?: Question | null
   challenge?: Challenge | null
   buzzed_player_id?: number
+  result?: GameResult | null
 }
 
 function App() {
@@ -62,7 +68,9 @@ function App() {
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [gameState, setGameState] = useState<GameState>('lobby')
   const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null)
+  const [gameResult, setGameResult] = useState<GameResult | null>(null)
 
+  const winnerTeam = teams.length > 0 ? teams.reduce((max, current) => current.points > max.points ? current : max, teams[0]) : null
   const buzzedPlayer = players.find(
     (player) => player.player_id === buzzPlayerId
   )
@@ -111,6 +119,7 @@ function App() {
         setRoundType(payload.round_type)
         setBuzzPlayerId(payload.buzzed_player_id ?? null)
         setChallenge(payload.challenge ?? null)
+        setGameResult(payload.result ?? null)
       }
 
       console.log('Message from server:', message)
@@ -446,12 +455,31 @@ function App() {
       )}
 
       {gameState === 'finished' && (
-        <>
-          <h2>Game Over</h2>
-          <p>Thank you for playing</p>
-        </>
-      )}
+        <div className='game-over'>
+          <h2>Game over</h2>
 
+          {gameResult?.is_draw ? (
+            <h2>It is a draw</h2>
+          ) : winnerTeam ? (
+            <>
+              <h2>{winnerTeam.team_name} wins!</h2>
+              <p>Congrats!</p>
+            </>
+          ) : (
+            <p>Unable to determine the winner</p>
+          )}
+
+          <div className='final-score'>
+            <h3>Final Score</h3>
+            {teams.map((team) => (
+              <div key={team.team_id} className='team-score'>
+                <h4>{team.team_name}</h4>
+                <p>{team.points} points</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section >
   )
 }
