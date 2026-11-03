@@ -87,6 +87,8 @@ func (c *Client) readPump() {
 			c.handleCompleteChallenge(msg)
 		case MakeTeams:
 			c.handleMakeTeams()
+		case PlayAgain:
+			c.handlePlayAgain()
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
@@ -208,6 +210,33 @@ func (c *Client) handleStartGame() {
 	c.hub.mu.Unlock()
 	if err != nil {
 		log.Printf("could not start game %v", err)
+		return
+	}
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("could not broadcast game state %v", err)
+	}
+}
+
+func (c *Client) handlePlayAgain() {
+	if c.playerID == 0 {
+		log.Println("cannot play again, no player has joined")
+		return
+	}
+
+	c.hub.mu.Lock()
+
+	if c.playerID != c.game.HostPlayerID {
+		c.hub.mu.Unlock()
+		log.Println("cannot play again, player is not host")
+		return
+	}
+
+	err := c.game.ResetGame()
+	c.hub.mu.Unlock()
+
+	if err != nil {
+		log.Printf("could not reset game, got error %v", err)
 		return
 	}
 
