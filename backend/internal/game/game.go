@@ -26,6 +26,7 @@ var (
 	ErrAnswerPending        = errors.New("an answer is already pending")
 	ErrTeamsNotAssigned     = errors.New("teams has not been assigned")
 	ErrGameNotInLobby       = errors.New("game is not in lobby")
+	ErrGameNotFinished      = errors.New("game is not finished")
 )
 
 type JoinGamePayload struct {
@@ -440,6 +441,26 @@ func (g *Game) GetWinner() (*Team, bool) {
 	}
 
 	return winner, false
+}
+
+func (g *Game) ResetGame() error {
+	if g.State != GameStateFinished {
+		return ErrGameNotFinished
+	}
+
+	g.State = GameStateLobby
+	g.CurrentRound = 0
+	g.CurrentItem = 0
+	g.AnswerPending = false
+	g.BuzzedPlayerID = nil
+
+	for i := range g.Players {
+		g.Players[i].TeamID = nil
+	}
+
+	g.createTeams()
+
+	return nil
 }
 
 func (g *Game) StartGame() error {

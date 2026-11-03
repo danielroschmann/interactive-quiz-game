@@ -1284,3 +1284,107 @@ func TestCompleteChallenge_UnknownTeamID(t *testing.T) {
 		}
 	}
 }
+
+func TestResetGame_GameResets(t *testing.T) {
+	game := NewGame(nil)
+
+	player1 := game.JoinGame("John")
+	game.JoinGame("Doe")
+
+	game.HostPlayerID = player1.PlayerID
+
+	if err := game.MakeTeams(); err != nil {
+		t.Fatalf("could not make teams %v", err)
+	}
+
+	game.State = GameStateFinished
+	game.CurrentRound = 3
+	game.CurrentItem = 4
+
+	game.Teams[0].Points = 500
+	game.Teams[1].Points = 300
+
+	err := game.ResetGame()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if game.State != GameStateLobby {
+		t.Errorf("expected state %s, got %s", GameStateLobby, game.State)
+	}
+
+	if game.CurrentRound != 0 {
+		t.Errorf("expected current round 0, got %d", game.CurrentRound)
+	}
+
+	if game.CurrentItem != 0 {
+		t.Errorf("expected current item 0, got %d", game.CurrentItem)
+	}
+
+	if game.AnswerPending {
+		t.Error("expected answer pending to be false")
+	}
+
+	if game.BuzzedPlayerID != nil {
+		t.Error("expected buzzed player ID to be nil")
+	}
+
+	for _, team := range game.Teams {
+		if team.Points != 0 {
+			t.Errorf("expected team points to be 0, got %d", team.Points)
+		}
+
+		if len(team.PlayerIDs) != 0 {
+			t.Errorf("expected team player ids to be 0, got %d", team.PlayerIDs)
+		}
+	}
+
+	for _, player := range game.Players {
+		if player.TeamID != nil {
+			t.Errorf("expected player %d to have no team assigned", player.PlayerID)
+		}
+	}
+}
+
+func TestResetGame_PreservesPlayersAndHost(t *testing.T) {
+	g := initializeGame(t)
+
+	player1 := g.Players[0]
+	player2 := g.Players[1]
+
+	g.HostPlayerID = player1.PlayerID
+	g.State = GameStateFinished
+
+	err := g.ResetGame()
+	if err != nil {
+		t.Fatalf("expected game to reset, got error %v", err)
+	}
+
+	if len(g.Players) != 5 {
+		t.Errorf("expected 2 players, got %d", len(g.Players))
+	}
+
+	if g.Players[0].PlayerName != player1.PlayerName {
+		t.Errorf("expected name to be %s, got %s", g.Players[0].PlayerName, player1.PlayerName)
+	}
+
+	if g.Players[1].PlayerName != player2.PlayerName {
+		t.Errorf("expected name to be %s, got %s", g.Players[1].PlayerName, player2.PlayerName)
+	}
+
+	if g.HostPlayerID != player1.PlayerID {
+		t.Errorf("expected host id %d, got %d", player1.PlayerID, g.HostPlayerID)
+	}
+}
+
+func TestResetGame_NotFinished(t *testing.T) {
+	g := initializeGame(t)
+
+	g.State = GameStateLobby
+
+	err := g.ResetGame()
+
+	if !errors.Is(err, ErrGameNotFinished) {
+		t.Errorf("expected ErrGameNotFinished, got %v", err)
+	}
+}
