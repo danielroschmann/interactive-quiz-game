@@ -149,6 +149,19 @@ function App() {
 
   }
 
+
+  function handlePlayAgain() {
+    const socket = socketRef.current
+    if (!socket || socket.readyState != WebSocket.OPEN) {
+      setStatus('Not connected')
+      return
+    }
+
+    socket.send(JSON.stringify({
+      type: 'play_again'
+    }))
+
+  }
   function handleMakeTeams() {
     const socket = socketRef.current
 
@@ -478,6 +491,11 @@ function App() {
               </div>
             ))}
           </div>
+          {playerId !== null && playerId === hostPlayerId && (
+            <button type='button' onClick={handlePlayAgain}>
+              Play Again
+            </button>
+          )}
         </div>
       )}
     </section >
