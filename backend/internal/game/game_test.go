@@ -1465,3 +1465,29 @@ func TestReconnectPlayer_MultiplePlayers(t *testing.T) {
 		t.Error("expected Doe to be connected")
 	}
 }
+
+func TestReconnectPlayer_ReconnectDeniedWhenAlreadyConnected(t *testing.T) {
+	g := NewGame(nil)
+
+	john, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, ok := g.ReconnectPlayer(john.ReconnectToken)
+
+	if ok {
+		t.Fatal("expected reconnect to be denied for an already connected player")
+	}
+
+	for i := range g.Players {
+		if g.Players[i].PlayerID == john.PlayerID {
+			if !g.Players[i].Connected {
+				t.Error("expected john to remain connected")
+			}
+			return
+		}
+	}
+
+	t.Fatal("expected john to remain in game")
+}

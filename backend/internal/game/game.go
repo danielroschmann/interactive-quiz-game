@@ -161,6 +161,9 @@ func (g *Game) DisconnectPlayer(playerID uint) bool {
 func (g *Game) ReconnectPlayer(token string) (Player, bool) {
 	for i := range g.Players {
 		if g.Players[i].ReconnectToken == token {
+			if g.Players[i].Connected {
+				return Player{}, false
+			}
 			g.Players[i].Connected = true
 			return g.Players[i], true
 		}
