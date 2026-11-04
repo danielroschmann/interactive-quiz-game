@@ -69,6 +69,38 @@ func readGameInProgress(t *testing.T, conn *gorilla.Conn) GameStatePayload {
 	}
 }
 
+func waitForPlayerConnectionState(t *testing.T, hub *Hub, g *game.Game, playerID uint, connected bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(time.Second)
+
+	for time.Now().Before(deadline) {
+		hub.mu.Lock()
+
+		found := false
+		for _, player := range g.Players {
+			if player.PlayerID == playerID {
+				found = true
+				if player.Connected == connected {
+					hub.mu.Unlock()
+					return
+				}
+				break
+			}
+		}
+
+		hub.mu.Unlock()
+
+		if !found {
+			t.Fatalf("player %d was not found", playerID)
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("player %d did not reach Connected=%t", playerID, connected)
+}
+
 func TestBuildGameStatePayload_MultipleChoiceRound(t *testing.T) {
 	game := initializeGame(t)
 
@@ -1794,5 +1826,200 @@ func TestDisconnectPlayer(t *testing.T) {
 
 	if g.Players[0].Connected {
 		t.Fatal("expected player Connected to be false")
+	}
+}
+
+func TestWebSocket_Reconnect(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+	hub := NewHub()
+
+	go hub.Run()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		ServeWs(hub, g, w, r)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	header := http.Header{}
+	header.Set("Origin", "http://localhost:5173")
+
+	connJohn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", header)
+	if err != nil {
+		t.Fatalf("could not connect: %v", err)
+	}
+	defer connJohn.Close()
+
+	joinPayload := game.JoinGamePayload{
+		PlayerName: "John",
+	}
+	joinData, err := json.Marshal(joinPayload)
+	if err != nil {
+		t.Fatalf("could not marshal join payload: %v", err)
+	}
+
+	if err := connJohn.WriteJSON(Message{
+		Type:    JoinGame,
+		Payload: joinData,
+	}); err != nil {
+		t.Fatalf("could not send join message: %v", err)
+	}
+
+	var joinResponse struct {
+		PlayerID       uint   `json:"player_id"`
+		ReconnectToken string `json:"reconnect_token"`
+	}
+
+	connJohn.SetReadDeadline(time.Now().Add(time.Second))
+	for {
+		var msg Message
+		if err := connJohn.ReadJSON(&msg); err != nil {
+			t.Fatalf("could not read join response: %v", err)
+		}
+
+		if msg.Type == JoinGameResponse {
+			if err := json.Unmarshal(msg.Payload, &joinResponse); err != nil {
+				t.Fatalf("could not unmarshal join response: %v", err)
+			}
+			break
+		}
+	}
+
+	originalPlayerID := joinResponse.PlayerID
+	reconnectToken := joinResponse.ReconnectToken
+
+	if reconnectToken == "" {
+		t.Fatal("reconnect token was empty")
+	}
+	if originalPlayerID == 0 {
+		t.Fatal("player id was zero")
+	}
+
+	if err := connJohn.Close(); err != nil {
+		t.Fatalf("could not close connection: %v", err)
+	}
+
+	waitForPlayerConnectionState(t, hub, g, originalPlayerID, false)
+
+	connJohnReconnect, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", header)
+	if err != nil {
+		t.Fatalf("could not reconnect: %v", err)
+	}
+	defer connJohnReconnect.Close()
+
+	reconnectPayload := ReconnectPayload{
+		ReconnectToken: reconnectToken,
+	}
+	reconnectData, err := json.Marshal(reconnectPayload)
+	if err != nil {
+		t.Fatalf("could not marshal reconnect payload: %v", err)
+	}
+
+	if err := connJohnReconnect.WriteJSON(Message{
+		Type:    Reconnect,
+		Payload: reconnectData,
+	}); err != nil {
+		t.Fatalf("could not send reconnect message: %v", err)
+	}
+
+	var gameStatePayload struct {
+		Players []struct {
+			PlayerID   uint   `json:"player_id"`
+			PlayerName string `json:"player_name"`
+			Connected  bool   `json:"connected"`
+		} `json:"players"`
+	}
+
+	connJohnReconnect.SetReadDeadline(time.Now().Add(time.Second))
+	for {
+		var msg Message
+		if err := connJohnReconnect.ReadJSON(&msg); err != nil {
+			t.Fatalf("could not read game state update: %v", err)
+		}
+
+		if msg.Type == GameStateUpdate {
+			if err := json.Unmarshal(msg.Payload, &gameStatePayload); err != nil {
+				t.Fatalf("could not unmarshal game state: %v", err)
+			}
+			break
+		}
+	}
+
+	if len(gameStatePayload.Players) != 1 {
+		t.Fatalf("expected exactly 1 player, got %d", len(gameStatePayload.Players))
+	}
+
+	player := gameStatePayload.Players[0]
+
+	if player.PlayerID != originalPlayerID {
+		t.Errorf("expected player id %d, got %d", originalPlayerID, player.PlayerID)
+	}
+	if player.PlayerName != "John" {
+		t.Errorf("expected player name John, got %q", player.PlayerName)
+	}
+	if !player.Connected {
+		t.Error("expected player to be connected after reconnect")
+	}
+}
+
+func TestWebSocket_ReconnectInvalidToken(t *testing.T) {
+	rounds, err := game.LoadRounds("../questions.json")
+	if err != nil {
+		t.Fatalf("could not load rounds: %v", err)
+	}
+
+	g := game.NewGame(rounds)
+	hub := NewHub()
+
+	go hub.Run()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		ServeWs(hub, g, w, r)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	header := http.Header{}
+	header.Set("Origin", "http://localhost:5173")
+
+	conn, _, err := gorilla.DefaultDialer.Dial(wsURL+"/ws", header)
+	if err != nil {
+		t.Fatalf("could not connect: %v", err)
+	}
+	defer conn.Close()
+
+	reconnectPayload := ReconnectPayload{
+		ReconnectToken: "invalid-token",
+	}
+
+	payloadData, err := json.Marshal(reconnectPayload)
+	if err != nil {
+		t.Fatalf("could not marshal payload: %v", err)
+	}
+
+	if err := conn.WriteJSON(Message{
+		Type:    Reconnect,
+		Payload: payloadData,
+	}); err != nil {
+		t.Fatalf("could not send reconnect message: %v", err)
+	}
+
+	if conn != nil {
+		if len(g.Players) != 0 {
+			t.Errorf("expected no players, got %d", len(g.Players))
+		}
 	}
 }
