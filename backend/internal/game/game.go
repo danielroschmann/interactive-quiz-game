@@ -158,6 +158,16 @@ func (g *Game) DisconnectPlayer(playerID uint) bool {
 	return false
 }
 
+func (g *Game) ReconnectPlayer(token string) (Player, bool) {
+	for i := range g.Players {
+		if g.Players[i].ReconnectToken == token {
+			g.Players[i].Connected = true
+			return g.Players[i], true
+		}
+	}
+	return Player{}, false
+}
+
 func (g *Game) createTeams() {
 	team1 := NewTeam(1, "Team 1")
 	team2 := NewTeam(2, "Team 2")

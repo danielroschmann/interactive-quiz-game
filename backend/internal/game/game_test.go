@@ -1391,3 +1391,77 @@ func TestResetGame_NotFinished(t *testing.T) {
 		t.Errorf("expected ErrGameNotFinished, got %v", err)
 	}
 }
+
+func TestReconnectPlayer_ValidToken(t *testing.T) {
+	g := NewGame(nil)
+
+	player, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	g.DisconnectPlayer(player.PlayerID)
+
+	reconnectedPlayer, ok := g.ReconnectPlayer(player.ReconnectToken)
+
+	if !ok {
+		t.Fatal("expected player to reconnect")
+	}
+
+	if !reconnectedPlayer.Connected {
+		t.Error("expected player to be connected")
+	}
+
+	if reconnectedPlayer.PlayerID != player.PlayerID {
+		t.Errorf("expected player id %d, got %d", player.PlayerID, reconnectedPlayer.PlayerID)
+	}
+}
+
+func TestReconnectPlayer_InvalidToken(t *testing.T) {
+	g := NewGame(nil)
+
+	_, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	player, ok := g.ReconnectPlayer("invalidtoken")
+
+	if ok {
+		t.Fatal("expected reconnect to fail")
+	}
+
+	if player.PlayerID != 0 {
+		t.Error("expected empty player")
+	}
+}
+
+func TestReconnectPlayer_MultiplePlayers(t *testing.T) {
+	g := NewGame(nil)
+
+	_, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doe, err := g.JoinGame("Doe")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	g.DisconnectPlayer(doe.PlayerID)
+
+	player, ok := g.ReconnectPlayer(doe.ReconnectToken)
+
+	if !ok {
+		t.Fatal("expected Doe to reconnect")
+	}
+
+	if player.PlayerName != "Doe" {
+		t.Errorf("expected Doe, got %s", player.PlayerName)
+	}
+
+	if !player.Connected {
+		t.Error("expected Doe to be connected")
+	}
+}
