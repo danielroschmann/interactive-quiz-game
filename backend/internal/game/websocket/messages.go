@@ -18,6 +18,7 @@ const (
 	MakeTeams         MessageType = "make_teams"
 	PlayAgain         MessageType = "play_again"
 	JoinGameResponse  MessageType = "join_game_response"
+	Reconnect         MessageType = "reconnect"
 )
 
 type PlayerView struct {
@@ -44,6 +45,10 @@ type ChallengeView struct {
 
 type AnswerPayload struct {
 	Answer string `json:"answer"`
+}
+
+type ReconnectPayload struct {
+	ReconnectToken string `json:"reconnect_token"`
 }
 
 type AnswerResultPayload struct {

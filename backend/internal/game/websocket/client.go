@@ -89,6 +89,8 @@ func (c *Client) readPump() {
 			c.handleMakeTeams()
 		case PlayAgain:
 			c.handlePlayAgain()
+		case Reconnect:
+			c.handleReconnect(msg)
 		default:
 			log.Printf("unknown message type %s", msg.Type)
 		}
@@ -239,6 +241,34 @@ func (c *Client) handlePlayAgain() {
 		log.Printf("could not reset game, got error %v", err)
 		return
 	}
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("could not broadcast game state %v", err)
+	}
+}
+
+func (c *Client) handleReconnect(msg Message) {
+	var reconnectPayload ReconnectPayload
+
+	if err := json.Unmarshal(msg.Payload, &reconnectPayload); err != nil {
+		log.Printf("could not unmarshal reconnect payload %v", err)
+		return
+	}
+
+	if reconnectPayload.ReconnectToken == "" {
+		log.Println("reconnect token is missing")
+		return
+	}
+
+	c.hub.mu.Lock()
+	player, ok := c.game.ReconnectPlayer(reconnectPayload.ReconnectToken)
+	if !ok {
+		c.hub.mu.Unlock()
+		log.Println("could not find playetr with reconnect token")
+		return
+	}
+	c.playerID = player.PlayerID
+	c.hub.mu.Unlock()
 
 	if err := c.hub.BroadcastGameState(c.game); err != nil {
 		log.Printf("could not broadcast game state %v", err)
