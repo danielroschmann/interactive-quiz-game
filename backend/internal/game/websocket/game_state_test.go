@@ -321,7 +321,7 @@ func TestHub_BroadcastGameState(t *testing.T) {
 	defer cancel()
 	g := initializeGame(t)
 
-	hub := NewHub()
+	hub := NewHub(g)
 	ch := make(chan error, 1)
 
 	go func() {
@@ -373,7 +373,7 @@ func TestHub_RunBroadcastMessageToClient(t *testing.T) {
 	defer cancel()
 	g := initializeGame(t)
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go func() {
 		hub.Run()
@@ -435,7 +435,7 @@ func TestHandleBuzz_RegisterBuzz(t *testing.T) {
 		t.Fatalf("expected round type %s, got %s", game.RoundTypeFastestBuzz, round.Type)
 	}
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go func() {
 		hub.Run()
@@ -531,7 +531,7 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 		t.Fatalf("could not get current question %v", err)
 	}
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go func() {
 		hub.Run()
@@ -681,7 +681,7 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 	if wrongAnswer == question.CorrectAnswer {
 		wrongAnswer = "another wrong answer"
 	}
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go func() {
 		hub.Run()
@@ -805,7 +805,7 @@ func TestJoinGame_FirstPlayerBecomesHost(t *testing.T) {
 	}
 
 	g := game.NewGame(rounds)
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go func() {
 		hub.Run()
@@ -846,7 +846,7 @@ func TestJoinGame_SecondPlayerDoesntReplaceHost(t *testing.T) {
 	}
 
 	g := game.NewGame(rounds)
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go func() {
 		hub.Run()
@@ -922,10 +922,10 @@ func TestHandleStartGame_HostStartsGame(t *testing.T) {
 		t.Fatalf("could not load rounds: %v", err)
 	}
 
-	hub := NewHub()
+	g := game.NewGame(rounds)
+	hub := NewHub(g)
 
 	go hub.Run()
-	g := game.NewGame(rounds)
 	host, err := g.JoinGame("John")
 	if err != nil {
 		t.Fatal("could not create player")
@@ -992,10 +992,10 @@ func TestHandleStartGame_NonHostCantStartGame(t *testing.T) {
 		t.Fatalf("could not load rounds: %v", err)
 	}
 
-	hub := NewHub()
+	g := game.NewGame(rounds)
+	hub := NewHub(g)
 
 	go hub.Run()
-	g := game.NewGame(rounds)
 	john, err := g.JoinGame("John")
 	if err != nil {
 		t.Fatal("could not create player")
@@ -1040,7 +1040,7 @@ func TestJoinGame_BroadcastUpdatedLobbyState(t *testing.T) {
 
 	g := game.NewGame(rounds)
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1160,7 +1160,7 @@ func TestWebSocket_JoinGame(t *testing.T) {
 
 	g := game.NewGame(rounds)
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1278,7 +1278,7 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	g := game.NewGame(rounds)
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1555,7 +1555,7 @@ func TestHandleCompleteChallenge_NonHostCannotCompleteChallenge(t *testing.T) {
 	g.CurrentRound = 3
 	g.CurrentItem = 0
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1631,7 +1631,7 @@ func TestHandleCompleteChallenge_MissingTeamPoints(t *testing.T) {
 	g.CurrentRound = 3
 	g.CurrentItem = 0
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1697,7 +1697,7 @@ func TestHandleCompleteChallenge_UnknownTeamID(t *testing.T) {
 	g.CurrentRound = 3
 	g.CurrentItem = 0
 
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1836,7 +1836,7 @@ func TestWebSocket_Reconnect(t *testing.T) {
 	}
 
 	g := game.NewGame(rounds)
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 
@@ -1978,7 +1978,7 @@ func TestWebSocket_ReconnectInvalidToken(t *testing.T) {
 	}
 
 	g := game.NewGame(rounds)
-	hub := NewHub()
+	hub := NewHub(g)
 
 	go hub.Run()
 

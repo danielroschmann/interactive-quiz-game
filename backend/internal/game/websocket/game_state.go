@@ -2,7 +2,6 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 
 	"github.com/danielroschmann/interactive-quiz-game/backend/internal/game"
 )
@@ -109,11 +108,15 @@ func BuildGameStateUpdateMessage(g *game.Game) ([]byte, error) {
 	return msgData, nil
 }
 
-func (h *Hub) BroadcastGameState(g *game.Game) error {
+func (h *Hub) buildGameStateMessage(g *game.Game) ([]byte, error) {
 	h.mu.Lock()
-	msg, err := BuildGameStateUpdateMessage(g)
-	log.Printf("Game state message: %s", string(msg))
-	h.mu.Unlock()
+	defer h.mu.Unlock()
+
+	return BuildGameStateUpdateMessage(g)
+}
+
+func (h *Hub) BroadcastGameState(g *game.Game) error {
+	msg, err := h.buildGameStateMessage(g)
 	if err != nil {
 		return err
 	}
