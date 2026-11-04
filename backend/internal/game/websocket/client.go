@@ -254,17 +254,48 @@ func (c *Client) joinGame(msg Message) {
 	}
 	fmt.Printf("player wants to join: %s\n", payload.PlayerName)
 	c.hub.mu.Lock()
-	player := c.game.JoinGame(payload.PlayerName)
+	player, err := c.game.JoinGame(payload.PlayerName)
+	if err != nil {
+		c.hub.mu.Unlock()
+		log.Printf("failed to create player %v", err)
+		return
+	}
 	if c.game.HostPlayerID == 0 {
 		c.game.HostPlayerID = player.PlayerID
 	}
 	c.hub.mu.Unlock()
 	c.playerID = player.PlayerID
+
+	responsePayload := game.JoinGameResponsePayload{
+		PlayerID:       player.PlayerID,
+		PlayerName:     player.PlayerName,
+		ReconnectToken: player.ReconnectToken,
+	}
+
+	payloadData, err := json.Marshal(responsePayload)
+	if err != nil {
+		log.Printf("could not marshal join response %v", err)
+		return
+	}
+
+	response := Message{
+		Type:    JoinGameResponse,
+		Payload: payloadData,
+	}
+
+	responseData, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("could not marshal join response %v", err)
+		return
+	}
+
+	c.send <- responseData
+
 	playerJoinedPayload := game.PlayerJoinedPayload{
 		PlayerID:   player.PlayerID,
 		PlayerName: player.PlayerName,
 	}
-	payloadData, err := json.Marshal(playerJoinedPayload)
+	payloadData, err = json.Marshal(playerJoinedPayload)
 	if err != nil {
 		log.Printf("failed to marshal payload %v", err)
 		return

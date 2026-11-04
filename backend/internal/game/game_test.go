@@ -1288,7 +1288,10 @@ func TestCompleteChallenge_UnknownTeamID(t *testing.T) {
 func TestResetGame_GameResets(t *testing.T) {
 	game := NewGame(nil)
 
-	player1 := game.JoinGame("John")
+	player1, err := game.JoinGame("John")
+	if err != nil {
+		t.Fatal("could not create player")
+	}
 	game.JoinGame("Doe")
 
 	game.HostPlayerID = player1.PlayerID
@@ -1304,7 +1307,7 @@ func TestResetGame_GameResets(t *testing.T) {
 	game.Teams[0].Points = 500
 	game.Teams[1].Points = 300
 
-	err := game.ResetGame()
+	err = game.ResetGame()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

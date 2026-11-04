@@ -894,7 +894,10 @@ func TestHandleStartGame_HostStartsGame(t *testing.T) {
 
 	go hub.Run()
 	g := game.NewGame(rounds)
-	host := g.JoinGame("John")
+	host, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal("could not create player")
+	}
 	g.JoinGame("Doe")
 
 	// John er host
@@ -961,8 +964,14 @@ func TestHandleStartGame_NonHostCantStartGame(t *testing.T) {
 
 	go hub.Run()
 	g := game.NewGame(rounds)
-	john := g.JoinGame("John")
-	doe := g.JoinGame("Doe")
+	john, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal("could not create player")
+	}
+	doe, err := g.JoinGame("Doe")
+	if err != nil {
+		t.Fatal("could not create player")
+	}
 
 	// John er host
 	g.HostPlayerID = john.PlayerID
@@ -1006,7 +1015,7 @@ func TestJoinGame_BroadcastUpdatedLobbyState(t *testing.T) {
 	john := Client{
 		hub:  hub,
 		game: g,
-		send: make(chan []byte, 2),
+		send: make(chan []byte, 10),
 	}
 
 	hub.register <- &john
@@ -1030,6 +1039,7 @@ func TestJoinGame_BroadcastUpdatedLobbyState(t *testing.T) {
 	}
 	receivedPlayerJoined := false
 	receivedGameState := false
+	recievedJoinResponse := false
 	var gameStatePayload GameStatePayload
 
 	for !receivedGameState {
@@ -1041,6 +1051,18 @@ func TestJoinGame_BroadcastUpdatedLobbyState(t *testing.T) {
 			}
 
 			switch msg.Type {
+			case JoinGameResponse:
+				var response game.JoinGameResponsePayload
+				if err := json.Unmarshal(msg.Payload, &response); err != nil {
+					t.Fatalf("could not unmarshal join response %v", err)
+				}
+				if response.PlayerID != john.playerID {
+					t.Errorf("expected player id %d, got %d", john.playerID, response.PlayerID)
+				}
+				if response.ReconnectToken == "" {
+					t.Error("expected reconnect token to be set")
+				}
+				recievedJoinResponse = true
 			case PlayerJoined:
 				receivedPlayerJoined = true
 
@@ -1061,6 +1083,10 @@ func TestJoinGame_BroadcastUpdatedLobbyState(t *testing.T) {
 
 	if !receivedPlayerJoined {
 		t.Error("expected to receive PlayerJoined")
+	}
+
+	if !recievedJoinResponse {
+		t.Error("expected to recieve JoinGameResponse")
 	}
 
 	if gameStatePayload.State != string(game.GameStateLobby) {
@@ -1145,6 +1171,31 @@ func TestWebSocket_JoinGame(t *testing.T) {
 		t.Fatalf("could not set read deadline: %v", err)
 	}
 
+	var joinResponseMessage Message
+
+	if err := conn.ReadJSON(&joinResponseMessage); err != nil {
+		t.Fatalf("could not read JoinGameResponse message: %v", err)
+	}
+
+	if joinResponseMessage.Type != JoinGameResponse {
+		t.Fatalf("expected message type %s, got %s", JoinGameResponse, joinResponseMessage.Type)
+	}
+
+	var joinResponse game.JoinGameResponsePayload
+
+	if err := json.Unmarshal(joinResponseMessage.Payload, &joinResponse); err != nil {
+		t.Fatalf("could not unmarshal JoinGameResponse payload: %v", err)
+	}
+
+	if joinResponse.PlayerName != "John" {
+		t.Errorf("expected player name John, got %s", joinResponse.PlayerName)
+	}
+
+	if joinResponse.ReconnectToken == "" {
+		t.Error("expected reconnect token to be set")
+	}
+
+	// Read PlayerJoined broadcast
 	var playerJoinedMessage Message
 
 	if err := conn.ReadJSON(&playerJoinedMessage); err != nil {
@@ -1252,6 +1303,22 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 		t.Fatalf("could not send John's join message: %v", err)
 	}
 
+	johnResponseMessage := readMessage(connJohn)
+
+	if johnResponseMessage.Type != JoinGameResponse {
+		t.Fatalf("expected JoinGameResponse, got %s", johnResponseMessage.Type)
+	}
+
+	var johnResponse game.JoinGameResponsePayload
+
+	if err := json.Unmarshal(johnResponseMessage.Payload, &johnResponse); err != nil {
+		t.Fatalf("could not unmarshal John's join response: %v", err)
+	}
+
+	if johnResponse.ReconnectToken == "" {
+		t.Fatal("expected John's reconnect token to be set")
+	}
+
 	johnJoinedMessage := readMessage(connJohn)
 
 	if johnJoinedMessage.Type != PlayerJoined {
@@ -1323,6 +1390,22 @@ func TestWebSocket_HostStartsGame(t *testing.T) {
 	}
 
 	doeJoinedMessage := readMessage(connJohn)
+
+	doeResponseMessage := readMessage(connDoe)
+
+	if doeResponseMessage.Type != JoinGameResponse {
+		t.Fatalf("Doe: expected JoinGameResponse, got %s", doeResponseMessage.Type)
+	}
+
+	var doeResponse game.JoinGameResponsePayload
+
+	if err := json.Unmarshal(doeResponseMessage.Payload, &doeResponse); err != nil {
+		t.Fatalf("could not unmarshal Doe's join response: %v", err)
+	}
+
+	if doeResponse.ReconnectToken == "" {
+		t.Fatal("expected Doe's reconnect token to be set")
+	}
 	doeOwnJoinedMessage := readMessage(connDoe)
 
 	if doeJoinedMessage.Type != PlayerJoined {
@@ -1694,7 +1777,10 @@ func TestBuildGameStatePayload_WithWinner(t *testing.T) {
 
 func TestDisconnectPlayer(t *testing.T) {
 	g := game.NewGame(nil)
-	player := g.JoinGame("John")
+	player, err := g.JoinGame("John")
+	if err != nil {
+		t.Fatal("could not create player")
+	}
 
 	disconnected := g.DisconnectPlayer(player.PlayerID)
 

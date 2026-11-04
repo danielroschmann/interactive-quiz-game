@@ -17,6 +17,7 @@ const (
 	AnswerResult      MessageType = "answer_result"
 	MakeTeams         MessageType = "make_teams"
 	PlayAgain         MessageType = "play_again"
+	JoinGameResponse  MessageType = "join_game_response"
 )
 
 type PlayerView struct {

@@ -2,10 +2,12 @@
 package game
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
-	"math/rand"
+	math "math/rand"
 	"os"
 	"slices"
 )
@@ -31,6 +33,12 @@ var (
 
 type JoinGamePayload struct {
 	PlayerName string `json:"player_name"`
+}
+
+type JoinGameResponsePayload struct {
+	PlayerID       uint   `json:"player_id"`
+	PlayerName     string `json:"player_name"`
+	ReconnectToken string `json:"reconnect_token"`
 }
 
 type PlayerJoinedPayload struct {
@@ -101,15 +109,31 @@ func NewGame(rounds []Round) *Game {
 	return g
 }
 
-func (g *Game) JoinGame(playerName string) Player {
+func generateReconnectToken() (string, error) {
+	token := make([]byte, 32)
+
+	if _, err := rand.Read(token); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(token), nil
+}
+
+func (g *Game) JoinGame(playerName string) (Player, error) {
+	token, err := generateReconnectToken()
+	if err != nil {
+		return Player{}, err
+	}
 	player := Player{
-		PlayerName: playerName,
-		PlayerID:   g.nextPlayerID,
+		PlayerName:     playerName,
+		PlayerID:       g.nextPlayerID,
+		Connected:      true,
+		ReconnectToken: token,
 	}
 	g.Players = append(g.Players, player)
 	g.nextPlayerID++
 
-	return player
+	return player, nil
 }
 
 func (g *Game) LeaveGame(playerID uint) (Player, bool) {
@@ -143,7 +167,7 @@ func (g *Game) createTeams() {
 
 func (g *Game) assignPlayersToTeams() {
 	amountOfPlayers := len(g.Players)
-	rand.Shuffle(amountOfPlayers, func(i, j int) {
+	math.Shuffle(amountOfPlayers, func(i, j int) {
 		g.Players[i], g.Players[j] = g.Players[j], g.Players[i]
 	})
 
