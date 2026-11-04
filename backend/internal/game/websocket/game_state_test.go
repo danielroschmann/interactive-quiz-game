@@ -1691,3 +1691,22 @@ func TestBuildGameStatePayload_WithWinner(t *testing.T) {
 		t.Error("expected game not to be a draw")
 	}
 }
+
+func TestDisconnectPlayer(t *testing.T) {
+	g := game.NewGame(nil)
+	player := g.JoinGame("John")
+
+	disconnected := g.DisconnectPlayer(player.PlayerID)
+
+	if !disconnected {
+		t.Fatal("expected player to be disconnected")
+	}
+
+	if len(g.Players) != 1 {
+		t.Fatalf("expected player to remain in game, got %d players", len(g.Players))
+	}
+
+	if g.Players[0].Connected {
+		t.Fatal("expected player Connected to be false")
+	}
+}

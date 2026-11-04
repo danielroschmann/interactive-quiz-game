@@ -124,6 +124,16 @@ func (g *Game) LeaveGame(playerID uint) (Player, bool) {
 	return Player{}, false
 }
 
+func (g *Game) DisconnectPlayer(playerID uint) bool {
+	for i := range g.Players {
+		if g.Players[i].PlayerID == playerID {
+			g.Players[i].Connected = false
+			return true
+		}
+	}
+	return false
+}
+
 func (g *Game) createTeams() {
 	team1 := NewTeam(1, "Team 1")
 	team2 := NewTeam(2, "Team 2")

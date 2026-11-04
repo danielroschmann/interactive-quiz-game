@@ -54,7 +54,7 @@ func ServeWs(hub *Hub, game *game.Game, w http.ResponseWriter, r *http.Request) 
 
 func (c *Client) readPump() {
 	defer func() {
-		c.leaveGame()
+		c.disconnectPlayer()
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -399,6 +399,24 @@ func (c *Client) leaveGame() {
 		return
 	}
 	c.hub.broadcast <- messageData
+}
+
+func (c *Client) disconnectPlayer() {
+	if c.playerID == 0 {
+		return
+	}
+
+	c.hub.mu.Lock()
+	disconnected := c.game.DisconnectPlayer(c.playerID)
+	c.hub.mu.Unlock()
+
+	if !disconnected {
+		return
+	}
+
+	if err := c.hub.BroadcastGameState(c.game); err != nil {
+		log.Printf("failed to broadcast game state %v", err)
+	}
 }
 
 func (c *Client) writePump() {
