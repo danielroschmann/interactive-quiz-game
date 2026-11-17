@@ -26,6 +26,7 @@ var (
 	ErrNoCurrentChallenge   = errors.New("no current challenge")
 	ErrInvalidTeamPoints    = errors.New("invalid team points")
 	ErrAnswerPending        = errors.New("an answer is already pending")
+	ErrTeamAlreadyAnswered  = errors.New("team has already answered")
 	ErrTeamsNotAssigned     = errors.New("teams has not been assigned")
 	ErrGameNotInLobby       = errors.New("game is not in lobby")
 	ErrGameNotFinished      = errors.New("game is not finished")
@@ -77,6 +78,7 @@ type Game struct {
 	BuzzedPlayerID *uint
 	HostPlayerID   uint
 	AnswerPending  bool
+	TeamAnswers    map[uint]bool
 }
 
 type Round struct {
@@ -103,6 +105,7 @@ func NewGame(rounds []Round) *Game {
 		Rounds:       rounds,
 		nextPlayerID: 1,
 		State:        GameStateLobby,
+		TeamAnswers:  make(map[uint]bool),
 	}
 
 	g.createTeams()
@@ -291,6 +294,7 @@ func (g *Game) NextItem() {
 	}
 	g.AnswerPending = false
 	g.BuzzedPlayerID = nil
+	g.TeamAnswers = make(map[uint]bool)
 	if g.CurrentItem < totalItems-1 {
 		g.CurrentItem++
 		return
@@ -369,15 +373,20 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 
 	switch currentRound.Type {
 	case RoundTypeMultipleChoice:
-		correct := question.CorrectAnswer == answer
-		if correct {
-			for j := range g.Teams {
-				if g.Teams[j].TeamID == *playerTeamID {
-					g.Teams[j].Points += 100
-				}
-			}
+		if g.TeamAnswers == nil {
+			g.TeamAnswers = make(map[uint]bool)
 		}
-		g.AnswerPending = true
+		if _, answered := g.TeamAnswers[*playerTeamID]; answered {
+			return false, ErrTeamAlreadyAnswered
+		}
+
+		correct := question.CorrectAnswer == answer
+		g.TeamAnswers[*playerTeamID] = correct
+
+		if len(g.TeamAnswers) == len(g.Teams) {
+			g.applyMultipleChoicePoints()
+			g.AnswerPending = true
+		}
 		return correct, nil
 	case RoundTypeFastestBuzz:
 		if g.BuzzedPlayerID == nil {
@@ -403,6 +412,21 @@ func (g *Game) SubmitAnswer(playerID uint, answer string) (bool, error) {
 		return false, ErrUnsupportedRoundType
 	default:
 		return false, ErrInvalidRoundType
+	}
+}
+
+func (g *Game) applyMultipleChoicePoints() {
+	for i := range g.Teams {
+		correct, answered := g.TeamAnswers[g.Teams[i].TeamID]
+		if !answered {
+			continue
+		}
+
+		if correct {
+			g.Teams[i].Points += 100
+		} else {
+			g.Teams[i].Points -= 100
+		}
 	}
 }
 
@@ -500,6 +524,7 @@ func (g *Game) ResetGame() error {
 	g.CurrentItem = 0
 	g.AnswerPending = false
 	g.BuzzedPlayerID = nil
+	g.TeamAnswers = make(map[uint]bool)
 
 	for i := range g.Players {
 		g.Players[i].TeamID = nil
@@ -522,6 +547,9 @@ func (g *Game) StartGame() error {
 
 	g.CurrentRound = 1
 	g.CurrentItem = 0
+	g.AnswerPending = false
+	g.BuzzedPlayerID = nil
+	g.TeamAnswers = make(map[uint]bool)
 	g.State = GameStateInProgress
 
 	return nil
