@@ -507,24 +507,8 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 	g.CurrentRound = 1
 	g.CurrentItem = 0
 
-	playerID := uint(1)
-	var playerTeamID *uint
-	for i := range g.Players {
-		if g.Players[i].PlayerID == playerID {
-			playerTeamID = g.Players[i].TeamID
-			break
-		}
-	}
-	if playerTeamID == nil {
-		t.Fatalf("player team id was not found")
-	}
-
-	pointsBefore := 0
-	for i := range g.Teams {
-		if g.Teams[i].TeamID == *playerTeamID {
-			pointsBefore = g.Teams[i].Points
-		}
-	}
+	teamOnePlayerID := g.Teams[0].PlayerIDs[0]
+	teamTwoPlayerID := g.Teams[1].PlayerIDs[0]
 
 	question, err := g.GetCurrentQuestion()
 	if err != nil {
@@ -540,8 +524,8 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 	client := Client{
 		hub:      hub,
 		game:     g,
-		playerID: 1,
-		send:     make(chan []byte, 2),
+		playerID: teamOnePlayerID,
+		send:     make(chan []byte, 4),
 	}
 
 	hub.register <- &client
@@ -561,33 +545,53 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 
 	client.handleAnswer(message)
 
-	pointsAfter := 0
-	for i := range g.Teams {
-		if g.Teams[i].TeamID == *playerTeamID {
-			pointsAfter = g.Teams[i].Points
-			break
-		}
-	}
-
-	if pointsAfter != pointsBefore+100 {
-		t.Errorf("expected points to be %d, got %d", pointsBefore+100, pointsAfter)
-	}
-
-	if g.CurrentItem != 0 {
-		t.Errorf("expected to remain on current item %d, got %d", 0, g.CurrentItem)
-	}
-
-	if g.CurrentRound != 1 {
-		t.Errorf("expected to stay in round number %d got %d", 1, g.CurrentRound)
-	}
-
 	var msgData []byte
 
 	select {
 	case msgData = <-client.send:
-
 	case <-ctx.Done():
-		t.Fatalf("timed out waiting for broadcast message")
+		t.Fatalf("timed out waiting for game state update")
+	}
+
+	var firstStateMessage Message
+	if err := json.Unmarshal(msgData, &firstStateMessage); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if firstStateMessage.Type != GameStateUpdate {
+		t.Fatalf("expected message type %s, got %s", GameStateUpdate, firstStateMessage.Type)
+	}
+
+	var firstStatePayload GameStatePayload
+	if err := json.Unmarshal(firstStateMessage.Payload, &firstStatePayload); err != nil {
+		t.Fatalf("could not unmarshal game state payload %v", err)
+	}
+
+	if len(firstStatePayload.AnsweredTeamIDs) != 1 {
+		t.Fatalf("expected one answered team, got %d", len(firstStatePayload.AnsweredTeamIDs))
+	}
+
+	if firstStatePayload.AnsweredTeamIDs[0] != g.Teams[0].TeamID {
+		t.Errorf("expected answered team %d, got %d", g.Teams[0].TeamID, firstStatePayload.AnsweredTeamIDs[0])
+	}
+
+	if g.AnswerPending {
+		t.Error("expected game to wait for the other team")
+	}
+
+	for i := range g.Teams {
+		if g.Teams[i].Points != 0 {
+			t.Errorf("expected team %d to have 0 points, got %d", g.Teams[i].TeamID, g.Teams[i].Points)
+		}
+	}
+
+	client.playerID = teamTwoPlayerID
+	client.handleAnswer(message)
+
+	select {
+	case msgData = <-client.send:
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for answer result")
 	}
 
 	var resultMessage Message
@@ -608,12 +612,18 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 		t.Error("expected answer to be correct")
 	}
 
-	if resultPayload.PlayerID != playerID {
-		t.Errorf("expected player id %d, got %d", playerID, resultPayload.PlayerID)
-	}
-
 	if resultPayload.CorrectAnswer != question.CorrectAnswer {
 		t.Errorf("expected correct answer %q, got %q", question.CorrectAnswer, resultPayload.CorrectAnswer)
+	}
+
+	if len(resultPayload.TeamResults) != 2 {
+		t.Fatalf("expected results for 2 teams, got %d", len(resultPayload.TeamResults))
+	}
+
+	for i := range resultPayload.TeamResults {
+		if !resultPayload.TeamResults[i].IsCorrect {
+			t.Errorf("expected team %d answer to be correct", resultPayload.TeamResults[i].TeamID)
+		}
 	}
 
 	select {
@@ -630,8 +640,8 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 	if stateMessage.Type != GameStateUpdate {
 		t.Errorf("expected message type %s, got %s", GameStateUpdate, stateMessage.Type)
 	}
-	var gameStatePayload GameStatePayload
 
+	var gameStatePayload GameStatePayload
 	if err := json.Unmarshal(stateMessage.Payload, &gameStatePayload); err != nil {
 		t.Fatalf("could not unmarshal game state payload: %v", err)
 	}
@@ -643,6 +653,12 @@ func TestHandleAnswer_CorrectAnswer(t *testing.T) {
 	if gameStatePayload.CurrentItem != 0 {
 		t.Errorf("expected current item to remain at 0, got %d", gameStatePayload.CurrentItem)
 	}
+
+	for i := range gameStatePayload.Teams {
+		if gameStatePayload.Teams[i].Points != 100 {
+			t.Errorf("expected team %d to have 100 points, got %d", gameStatePayload.Teams[i].TeamID, gameStatePayload.Teams[i].Points)
+		}
+	}
 }
 
 func TestHandleAnswer_WrongAnswer(t *testing.T) {
@@ -653,24 +669,8 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 	g.CurrentRound = 1
 	g.CurrentItem = 0
 
-	playerID := uint(1)
-	var playerTeamID *uint
-	for i := range g.Players {
-		if g.Players[i].PlayerID == playerID {
-			playerTeamID = g.Players[i].TeamID
-			break
-		}
-	}
-	if playerTeamID == nil {
-		t.Fatalf("player team id was not found")
-	}
-
-	pointsBefore := 0
-	for i := range g.Teams {
-		if g.Teams[i].TeamID == *playerTeamID {
-			pointsBefore = g.Teams[i].Points
-		}
-	}
+	teamOnePlayerID := g.Teams[0].PlayerIDs[0]
+	teamTwoPlayerID := g.Teams[1].PlayerIDs[0]
 
 	question, err := g.GetCurrentQuestion()
 	if err != nil {
@@ -690,8 +690,8 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 	client := Client{
 		hub:      hub,
 		game:     g,
-		playerID: 1,
-		send:     make(chan []byte, 2),
+		playerID: teamOnePlayerID,
+		send:     make(chan []byte, 4),
 	}
 
 	hub.register <- &client
@@ -711,36 +711,47 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 
 	client.handleAnswer(message)
 
-	nextQuestion, err := g.GetCurrentQuestion()
-	if err != nil {
-		t.Fatalf("could not get next question %v", err)
-	}
-
-	pointsAfter := 0
-	for i := range g.Teams {
-		if g.Teams[i].TeamID == *playerTeamID {
-			pointsAfter = g.Teams[i].Points
-			break
-		}
-	}
-
-	if pointsAfter != pointsBefore {
-		t.Errorf("expected points to be %d, got %d", pointsBefore, pointsAfter)
-	}
-
-	if g.CurrentItem != 0 {
-		t.Errorf("expected to go remain at item %d, got %d", 0, g.CurrentItem)
-	}
-
-	if g.CurrentRound != 1 {
-		t.Errorf("expected to stay in round number %d got %d", 1, g.CurrentRound)
-	}
-
 	var msgData []byte
 
 	select {
 	case msgData = <-client.send:
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for game state update")
+	}
 
+	var firstStateMessage Message
+	if err := json.Unmarshal(msgData, &firstStateMessage); err != nil {
+		t.Fatalf("could not unmarshal message %v", err)
+	}
+
+	if firstStateMessage.Type != GameStateUpdate {
+		t.Fatalf("expected message type %s, got %s", GameStateUpdate, firstStateMessage.Type)
+	}
+
+	var firstStatePayload GameStatePayload
+	if err := json.Unmarshal(firstStateMessage.Payload, &firstStatePayload); err != nil {
+		t.Fatalf("could not unmarshal game state payload %v", err)
+	}
+
+	if len(firstStatePayload.AnsweredTeamIDs) != 1 {
+		t.Fatalf("expected one answered team, got %d", len(firstStatePayload.AnsweredTeamIDs))
+	}
+
+	if firstStatePayload.AnsweredTeamIDs[0] != g.Teams[0].TeamID {
+		t.Errorf("expected answered team %d, got %d", g.Teams[0].TeamID, firstStatePayload.AnsweredTeamIDs[0])
+	}
+
+	for i := range g.Teams {
+		if g.Teams[i].Points != 0 {
+			t.Errorf("expected team %d to have 0 points, got %d", g.Teams[i].TeamID, g.Teams[i].Points)
+		}
+	}
+
+	client.playerID = teamTwoPlayerID
+	client.handleAnswer(message)
+
+	select {
+	case msgData = <-client.send:
 	case <-ctx.Done():
 		t.Fatalf("timed out waiting for answer result")
 	}
@@ -763,12 +774,18 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 		t.Error("expected answer to be incorrect")
 	}
 
-	if resultPayload.PlayerID != playerID {
-		t.Errorf("expected player id %d, got %d", playerID, resultPayload.PlayerID)
-	}
-
 	if resultPayload.CorrectAnswer != question.CorrectAnswer {
 		t.Errorf("expected correct answer %q, got %q", question.CorrectAnswer, resultPayload.CorrectAnswer)
+	}
+
+	if len(resultPayload.TeamResults) != 2 {
+		t.Fatalf("expected results for 2 teams, got %d", len(resultPayload.TeamResults))
+	}
+
+	for i := range resultPayload.TeamResults {
+		if resultPayload.TeamResults[i].IsCorrect {
+			t.Errorf("expected team %d answer to be incorrect", resultPayload.TeamResults[i].TeamID)
+		}
 	}
 
 	select {
@@ -789,12 +806,18 @@ func TestHandleAnswer_WrongAnswer(t *testing.T) {
 		t.Fatalf("could not unmarshal game state payload: %v", err)
 	}
 
-	if gameStatePayload.Question.Question != nextQuestion.Question {
-		t.Errorf("expected to get next question %q, got %q", nextQuestion.Question, gameStatePayload.Question.Question)
-	}
-
 	if gameStatePayload.Question == nil {
 		t.Fatal("expected question in game state payload")
+	}
+
+	if gameStatePayload.CurrentItem != 0 {
+		t.Errorf("expected current item to remain at 0, got %d", gameStatePayload.CurrentItem)
+	}
+
+	for i := range gameStatePayload.Teams {
+		if gameStatePayload.Teams[i].Points != -100 {
+			t.Errorf("expected team %d to have -100 points, got %d", gameStatePayload.Teams[i].TeamID, gameStatePayload.Teams[i].Points)
+		}
 	}
 }
 

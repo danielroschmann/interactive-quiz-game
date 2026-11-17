@@ -31,6 +31,11 @@ func BuildGameStatePayload(g *game.Game) (GameStatePayload, error) {
 			Points:   g.Teams[i].Points,
 		})
 	}
+	for i := range g.Teams {
+		if _, answered := g.TeamAnswers[g.Teams[i].TeamID]; answered {
+			payload.AnsweredTeamIDs = append(payload.AnsweredTeamIDs, g.Teams[i].TeamID)
+		}
+	}
 	if g.State == game.GameStateFinished {
 		winner, isDraw := g.GetWinner()
 		payload.Result = &GameResultPayload{
