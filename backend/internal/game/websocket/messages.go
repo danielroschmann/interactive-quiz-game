@@ -53,9 +53,15 @@ type ReconnectPayload struct {
 }
 
 type AnswerResultPayload struct {
-	PlayerID      uint   `json:"player_id"`
-	IsCorrect     bool   `json:"is_correct"`
-	CorrectAnswer string `json:"correct_answer"`
+	PlayerID      uint               `json:"player_id"`
+	IsCorrect     bool               `json:"is_correct"`
+	CorrectAnswer string             `json:"correct_answer"`
+	TeamResults   []TeamAnswerResult `json:"team_results,omitempty"`
+}
+
+type TeamAnswerResult struct {
+	TeamID    uint `json:"team_id"`
+	IsCorrect bool `json:"is_correct"`
 }
 
 type CompleteChallengePayload struct {
@@ -68,17 +74,18 @@ type GameResultPayload struct {
 }
 
 type GameStatePayload struct {
-	State          string             `json:"state"`
-	Players        []PlayerView       `json:"players"`
-	Teams          []TeamView         `json:"teams"`
-	CurrentRound   int                `json:"current_round"`
-	CurrentItem    int                `json:"current_item"`
-	RoundType      string             `json:"round_type"`
-	Question       *QuestionView      `json:"question,omitempty"`
-	Challenge      *ChallengeView     `json:"challenge,omitempty"`
-	BuzzedPlayerID *uint              `json:"buzzed_player_id,omitempty"`
-	HostPlayerID   uint               `json:"host_player_id"`
-	Result         *GameResultPayload `json:"result,omitempty"`
+	State           string             `json:"state"`
+	Players         []PlayerView       `json:"players"`
+	Teams           []TeamView         `json:"teams"`
+	CurrentRound    int                `json:"current_round"`
+	CurrentItem     int                `json:"current_item"`
+	RoundType       string             `json:"round_type"`
+	Question        *QuestionView      `json:"question,omitempty"`
+	Challenge       *ChallengeView     `json:"challenge,omitempty"`
+	BuzzedPlayerID  *uint              `json:"buzzed_player_id,omitempty"`
+	AnsweredTeamIDs []uint             `json:"answered_team_ids,omitempty"`
+	HostPlayerID    uint               `json:"host_player_id"`
+	Result          *GameResultPayload `json:"result,omitempty"`
 }
 
 type Message struct {
