@@ -536,36 +536,48 @@ func TestSubmitAnswer_AssignPointsForCorrectAnswer(t *testing.T) {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
 
-	_, err = game.GetCurrentQuestion()
+	question, err := game.GetCurrentQuestion()
 	if err != nil {
 		t.Fatalf("could not get current question")
 	}
-	answer, err := game.SubmitAnswer(1, "10")
+
+	teamOnePlayerID := game.Teams[0].PlayerIDs[0]
+	answer, err := game.SubmitAnswer(teamOnePlayerID, question.CorrectAnswer)
 	if err != nil {
-		t.Errorf("expected to get current question, got %v", err)
+		t.Fatalf("expected to submit answer, got %v", err)
 	}
-
 	if !answer {
-		t.Errorf("expected answer to be correct")
+		t.Fatalf("expected answer to be correct")
+	}
+	if game.AnswerPending {
+		t.Error("expected game to wait for the other team")
+	}
+	for i := range game.Teams {
+		if game.Teams[i].Points != 0 {
+			t.Errorf("expected team %d to have 0 points before both teams answered, got %d", game.Teams[i].TeamID, game.Teams[i].Points)
+		}
 	}
 
-	playerID := uint(1)
-	for i := range game.Players {
-		if game.Players[i].PlayerID == playerID {
-			playerTeamID := game.Players[i].TeamID
+	teamTwoPlayerID := game.Teams[1].PlayerIDs[0]
+	answer, err = game.SubmitAnswer(teamTwoPlayerID, question.CorrectAnswer)
+	if err != nil {
+		t.Fatalf("expected to submit answer, got %v", err)
+	}
+	if !answer {
+		t.Fatalf("expected answer to be correct")
+	}
+	if !game.AnswerPending {
+		t.Error("expected game to be ready for the next item when both teams answered")
+	}
 
-			for j := range game.Teams {
-				if game.Teams[j].TeamID == *playerTeamID {
-					if game.Teams[j].Points != 100 {
-						t.Errorf("expected team to have 100 points, got %d", game.Teams[j].Points)
-					}
-				}
-			}
+	for i := range game.Teams {
+		if game.Teams[i].Points != 100 {
+			t.Errorf("expected team %d to have 100 points, got %d", game.Teams[i].TeamID, game.Teams[i].Points)
 		}
 	}
 }
 
-func TestSubmitAnswer_ReturnsFalseAndZeroPointsForWrongAnswer(t *testing.T) {
+func TestSubmitAnswer_ReturnsFalseAndLosesPointsForWrongAnswer(t *testing.T) {
 	fileName := "questions.json"
 	rounds, err := LoadRounds(fileName)
 	if err != nil {
@@ -582,41 +594,119 @@ func TestSubmitAnswer_ReturnsFalseAndZeroPointsForWrongAnswer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected to make teams, got err %v", err)
 	}
-	err = game.MakeTeams()
-	if err != nil {
-		t.Fatalf("expected to make teams, got err %v", err)
-	}
 	err = game.StartGame()
 	if err != nil {
 		t.Fatalf("expected game to start, got err %v", err)
 	}
 
-	_, err = game.GetCurrentQuestion()
+	question, err := game.GetCurrentQuestion()
 	if err != nil {
 		t.Fatalf("could not get current question")
 	}
-	answer, err := game.SubmitAnswer(1, "13")
-	if err != nil {
-		t.Errorf("expected to get current question, got %v", err)
+
+	wrongAnswer := "13"
+	if question.CorrectAnswer == wrongAnswer {
+		wrongAnswer = "wrong answer"
 	}
 
-	if answer {
-		t.Errorf("expected answer to be wrong")
-	}
-
-	playerID := uint(1)
-	for i := range game.Players {
-		if game.Players[i].PlayerID == playerID {
-			playerTeamID := game.Players[i].TeamID
-
-			for j := range game.Teams {
-				if game.Teams[j].TeamID == *playerTeamID {
-					if game.Teams[j].Points != 0 {
-						t.Errorf("expected team to have 0 points, got %d", game.Teams[j].Points)
-					}
-				}
-			}
+	for i := range game.Teams {
+		playerID := game.Teams[i].PlayerIDs[0]
+		answer, err := game.SubmitAnswer(playerID, wrongAnswer)
+		if err != nil {
+			t.Fatalf("expected to submit answer, got %v", err)
 		}
+		if answer {
+			t.Fatalf("expected answer to be wrong")
+		}
+	}
+
+	for i := range game.Teams {
+		if game.Teams[i].Points != -100 {
+			t.Errorf("expected team %d to have -100 points, got %d", game.Teams[i].TeamID, game.Teams[i].Points)
+		}
+	}
+
+	if !game.AnswerPending {
+		t.Error("expected game to be ready for the next item when both teams answered")
+	}
+}
+
+func TestSubmitAnswer_MultipleChoiceTeamCanOnlyAnswerOnce(t *testing.T) {
+	game := initializeGame(t)
+
+	question, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+
+	team := game.Teams[0]
+	if len(team.PlayerIDs) < 2 {
+		t.Fatalf("expected team to have at least 2 players, got %d", len(team.PlayerIDs))
+	}
+
+	_, err = game.SubmitAnswer(team.PlayerIDs[0], question.CorrectAnswer)
+	if err != nil {
+		t.Fatalf("expected first team answer to be accepted, got %v", err)
+	}
+
+	_, err = game.SubmitAnswer(team.PlayerIDs[1], question.CorrectAnswer)
+	if !errors.Is(err, ErrTeamAlreadyAnswered) {
+		t.Errorf("expected error %v, got %v", ErrTeamAlreadyAnswered, err)
+	}
+}
+
+func TestSubmitAnswer_MultipleChoiceWaitsForOtherTeam(t *testing.T) {
+	game := initializeGame(t)
+
+	question, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+
+	_, err = game.SubmitAnswer(game.Teams[0].PlayerIDs[0], question.CorrectAnswer)
+	if err != nil {
+		t.Fatalf("expected first team answer to be accepted, got %v", err)
+	}
+
+	if game.AnswerPending {
+		t.Error("expected game to wait for the other team")
+	}
+
+	if len(game.TeamAnswers) != 1 {
+		t.Errorf("expected one team answer, got %d", len(game.TeamAnswers))
+	}
+
+	_, err = game.SubmitAnswer(game.Teams[1].PlayerIDs[0], question.CorrectAnswer)
+	if err != nil {
+		t.Fatalf("expected second team answer to be accepted, got %v", err)
+	}
+
+	if !game.AnswerPending {
+		t.Error("expected game to be ready for the next item")
+	}
+}
+
+func TestNextItem_ClearsMultipleChoiceAnswers(t *testing.T) {
+	game := initializeGame(t)
+
+	question, err := game.GetCurrentQuestion()
+	if err != nil {
+		t.Fatalf("could not get current question")
+	}
+
+	_, err = game.SubmitAnswer(game.Teams[0].PlayerIDs[0], question.CorrectAnswer)
+	if err != nil {
+		t.Fatalf("expected team answer to be accepted, got %v", err)
+	}
+
+	game.NextItem()
+
+	if len(game.TeamAnswers) != 0 {
+		t.Errorf("expected team answers to be cleared, got %d", len(game.TeamAnswers))
+	}
+
+	if game.AnswerPending {
+		t.Error("expected answer pending to be false")
 	}
 }
 
@@ -1306,6 +1396,8 @@ func TestResetGame_GameResets(t *testing.T) {
 
 	game.Teams[0].Points = 500
 	game.Teams[1].Points = 300
+	game.TeamAnswers[game.Teams[0].TeamID] = true
+	game.TeamAnswers[game.Teams[1].TeamID] = false
 
 	err = game.ResetGame()
 	if err != nil {
@@ -1330,6 +1422,10 @@ func TestResetGame_GameResets(t *testing.T) {
 
 	if game.BuzzedPlayerID != nil {
 		t.Error("expected buzzed player ID to be nil")
+	}
+
+	if len(game.TeamAnswers) != 0 {
+		t.Errorf("expected team answers to be cleared, got %d", len(game.TeamAnswers))
 	}
 
 	for _, team := range game.Teams {
