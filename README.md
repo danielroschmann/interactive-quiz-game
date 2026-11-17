@@ -9,4 +9,4 @@ A multiplayer quiz game I'm building as a hobby project for my girlfriend's birt
 
 ## Status
 
-Work in progress. The goal is to build a simple, fun multiplayer experience while learning more about Go, WebSockets, and real-time application design.
+MVP is done. There are plenty new things that could be added. For example, a timer for the questions/challenges, which probably will be added at some point in time. The goal was to build a simple, fun multiplayer experience while learning more about Go, WebSockets, and real-time application design.
