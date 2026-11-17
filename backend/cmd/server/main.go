@@ -10,12 +10,12 @@ import (
 )
 
 func main() {
-	hub := websocket.NewHub()
 	rounds, err := game.LoadRounds("../../internal/game/questions.json")
 	if err != nil {
 		log.Fatalf("failed to load rounds %v", err)
 	}
 	game := game.NewGame(rounds)
+	hub := websocket.NewHub(game)
 	go hub.Run()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Server")

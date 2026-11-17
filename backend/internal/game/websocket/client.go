@@ -367,38 +367,56 @@ func (c *Client) handleAnswer(msg Message) {
 		log.Printf("could not get current question %v", err)
 		return
 	}
+	round, err := c.game.GetCurrentRound()
+	if err != nil {
+		c.hub.mu.Unlock()
+		log.Printf("could not get current round %v", err)
+		return
+	}
 
+	isMultipleChoice := round.Type == game.RoundTypeMultipleChoice
 	correctAnswer := question.CorrectAnswer
 	correct, err := c.game.SubmitAnswer(c.playerID, answerPayload.Answer)
-	c.hub.mu.Unlock()
 	if err != nil {
+		c.hub.mu.Unlock()
 		log.Printf("failed to submit answer %v", err)
 		return
 	}
-	answerResultPayload := AnswerResultPayload{
-		PlayerID:      c.playerID,
-		IsCorrect:     correct,
-		CorrectAnswer: correctAnswer,
-	}
+	allTeamsAnswered := c.game.AnswerPending
 
-	payload, err := json.Marshal(answerResultPayload)
-	if err != nil {
-		log.Printf("could not marshal payload %v", err)
-		return
+	var teamResults []TeamAnswerResult
+	if isMultipleChoice && allTeamsAnswered {
+		teamResults = buildTeamAnswerResults(c.game)
 	}
+	c.hub.mu.Unlock()
 
-	answerResultMessage := Message{
-		Type:    AnswerResult,
-		Payload: payload,
+	if !isMultipleChoice || allTeamsAnswered {
+		answerResultPayload := AnswerResultPayload{
+			PlayerID:      c.playerID,
+			IsCorrect:     correct,
+			CorrectAnswer: correctAnswer,
+			TeamResults:   teamResults,
+		}
+
+		payload, err := json.Marshal(answerResultPayload)
+		if err != nil {
+			log.Printf("could not marshal payload %v", err)
+			return
+		}
+
+		answerResultMessage := Message{
+			Type:    AnswerResult,
+			Payload: payload,
+		}
+
+		answerData, err := json.Marshal(answerResultMessage)
+		if err != nil {
+			log.Printf("could not marshal payload %v", err)
+			return
+		}
+
+		c.hub.broadcast <- answerData
 	}
-
-	answerData, err := json.Marshal(answerResultMessage)
-	if err != nil {
-		log.Printf("could not marshal payload %v", err)
-		return
-	}
-
-	c.hub.broadcast <- answerData
 
 	if err := c.hub.BroadcastGameState(c.game); err != nil {
 		log.Printf("failed to broadcast game state %v", err)
@@ -406,7 +424,27 @@ func (c *Client) handleAnswer(msg Message) {
 
 	log.Printf("answer was %t", correct)
 
-	c.hub.timerForNextItem(c.game)
+	if !isMultipleChoice || allTeamsAnswered {
+		c.hub.timerForNextItem(c.game)
+	}
+}
+
+func buildTeamAnswerResults(g *game.Game) []TeamAnswerResult {
+	results := make([]TeamAnswerResult, 0, len(g.Teams))
+
+	for i := range g.Teams {
+		correct, answered := g.TeamAnswers[g.Teams[i].TeamID]
+		if !answered {
+			continue
+		}
+
+		results = append(results, TeamAnswerResult{
+			TeamID:    g.Teams[i].TeamID,
+			IsCorrect: correct,
+		})
+	}
+
+	return results
 }
 
 func (c *Client) handleBuzz() {
